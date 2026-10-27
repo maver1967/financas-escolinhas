@@ -1,0 +1,16 @@
+{
+  "name": "Finanças Escolinhas",
+  "short_name": "Escolinhas",
+  "description": "Gestão financeira das escolinhas Barrane, Matadouro, Nhamaxaxa, Macupula e São Lourenço",
+  "lang": "pt",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f2ec",
+  "theme_color": "#1f5f4a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
