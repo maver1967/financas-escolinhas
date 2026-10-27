@@ -10,7 +10,7 @@
 
 var CFG = {
   API_URL: 'https://script.google.com/macros/s/COLAR-AQUI-O-ID/exec',
-  GOOGLE_CLIENT_ID: 'COLAR-AQUI-O-CLIENT-ID.apps.googleusercontent.com',
+  GOOGLE_CLIENT_ID: '200957289142-r2kimtq5aiv5iamjvd9drvci4sojas71.apps.googleusercontent.com',
   VERSAO: '5.0.0'
 };
 
