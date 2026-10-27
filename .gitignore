@@ -1,0 +1,6 @@
+# sessão do servidor de prova, criada a cada arranque
+test/.token
+# capturas de ecrã do collaudo
+test/shots/
+.DS_Store
+node_modules/
