@@ -10,7 +10,7 @@ CONTA="maver1967"
 REPO="financas-escolinhas"
 
 if ! git remote get-url origin >/dev/null 2>&1; then
-  echo "A criar o repositório $CONTA/$REPO…"
+  echo "A criar o repositório ${CONTA}/${REPO}…"
   gh repo create "$REPO" --public --source=. --remote=origin --push \
     --description "Gestão financeira das escolinhas de Maxixe"
 else
@@ -28,5 +28,5 @@ gh api -X POST "repos/$CONTA/$REPO/pages" \
   || echo "  (já estava ligado)"
 
 echo ""
-echo "Pronto: https://$CONTA.github.io/$REPO/"
+echo "Pronto: https://${CONTA}.github.io/${REPO}/"
 echo "O primeiro arranque pode demorar um minuto."
