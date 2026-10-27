@@ -1,5 +1,7 @@
 # sessão do servidor de prova, criada a cada arranque
 test/.token
+# permissões pessoais desta máquina, não vão para o GitHub
+.claude/settings.local.json
 # capturas de ecrã do collaudo
 test/shots/
 .DS_Store
