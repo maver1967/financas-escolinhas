@@ -11,7 +11,7 @@
 
 var CONFIG = {
   SHEET_ID: '',   // vazio = o script está ligado à folha (Extensões → Apps Script)
-  GOOGLE_CLIENT_ID: 'COLAR-AQUI-O-CLIENT-ID.apps.googleusercontent.com',
+  GOOGLE_CLIENT_ID: '200957289142-r2kimtq5aiv5iamjvd9drvci4sojas71.apps.googleusercontent.com',
   SESSION_DAYS: 30,
   BACKUP_FOLDER_NAME: 'Backups Finanças Escolinhas',
   COMPROVATIVOS_FOLDER: 'Comprovativos Finanças Escolinhas',

@@ -41,8 +41,11 @@ I dati stanno solo nella memoria del computer: quando fermi il server con `Ctrl+
 
 1. In Google Drive crea un nuovo Google Sheet chiamato **Finanças Escolinhas**.
 2. *Extensões → Apps Script*. Cancella il contenuto di `Código.gs` e incolla tutto `backend/Code.gs`. Salva.
-3. Dal menu delle funzioni scegli **instalar** e premi *Executar*. Google chiede le autorizzazioni: foglio, Drive per i backup e per i comprovativi delle spese, richieste esterne per verificare il login, trigger.
-4. Torna al foglio: devono esserci 21 fogli. Il tuo indirizzo è già in `Utilizadores` come amministratore. Le 5 scuole, l'anno 2027 (febbraio–novembre), le categorie, i tipi di cobrança e i conti sono già caricati.
+3. *Impostazioni progetto* (l'ingranaggio) → spunta **Mostra il file manifest appsscript.json**. Torna all'editor, apri `appsscript.json` e incolla tutto `backend/appsscript.json`. Salva.
+
+   Questo passo **non è facoltativo**: dichiara i permessi che servono. Senza, Google non chiede quello per le richieste esterne, e il login fallisce con *«Não tem autorização para chamar UrlFetchApp.fetch»* — un errore che si vede solo al primo tentativo di accesso, non durante l'installazione.
+4. Dal menu delle funzioni scegli **instalar** e premi *Executar*. Google chiede le autorizzazioni: foglio, Drive per i backup e per i comprovativi delle spese, **connessione a un servizio esterno** per verificare il login, trigger.
+5. Torna al foglio: devono esserci 21 fogli. Il tuo indirizzo è già in `Utilizadores` come amministratore. Le 5 scuole, l'anno 2027 (febbraio–novembre), le categorie, i tipi di cobrança e i conti sono già caricati.
 
 `instalar()` si può rieseguire senza danni: non duplica nulla, aggiunge solo eventuali colonne mancanti.
 
@@ -218,6 +221,8 @@ L'ultima prova di `fase2.test.js` rifà i conti su tutte le righe: ogni stato di
 | "O utilizador … não tem acesso" | L'email non è in `Utilizadores` o è con *ativo = não* |
 | "Falta a folha …" | `instalar()` non è stato eseguito sul foglio giusto |
 | Modifiche allo script senza effetto | È stata creata una nuova implementazione invece di una *Nova versão* della stessa |
+| "Não tem autorização para chamar UrlFetchApp.fetch" | Manca `appsscript.json`, o l'autorizzazione è quella vecchia. Incolla il manifest, poi revoca l'accesso in [myaccount.google.com/permissions](https://myaccount.google.com/permissions), riesegui `instalar` e accetta di nuovo: Google non richiede i permessi se crede di averli già dati |
+| "Token emitido para outra aplicação" al login | Il `Code.gs` nell'editor è una versione vecchia, senza l'ID client. Ricopialo e rifai una *Nova versão* |
 | L'alunno non ha cobranças | Mancava il prezzo della sua scuola quando è stato iscritto: metti il prezzo e usa *Configuração → Cobranças → Ver o que falta* |
 | Lo sconto non si vede sulle cobranças | Lo sconto è arrivato dopo la generazione: *Configuração → Cobranças → Ver o que muda* ricalcola quelle ancora aperte e senza pagamenti |
 | "A cobrança … só tem X MT por pagar" | Qualcun altro ha già incassato quella quota: sincronizza e rifai la ripartizione |
