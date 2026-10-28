@@ -2500,16 +2500,27 @@ function mostrarChave(caixa, res) {
   caixa.appendChild(h('h3', null, 'No Tasker, duas tarefas'));
   caixa.appendChild(h('ol', { class: 'passos' },
     h('li', null, h('strong', null, 'SMS que chega'), ': perfil ', h('em', null, 'Event → Phone → Received Text'),
-      ', com ', h('em', null, 'Sender'), ' a ', h('code', null, '*e-Mola*'),
-      '. A tarefa faz um ', h('code', null, 'HTTP Request'), ' POST para o endereço acima, com ',
-      h('code', null, 'Content-Type: text/plain'), ' e o corpo:',
-      h('pre', null, '{"action":"sms","chave":"' + res.chave +
-        '","remetente":"%SMSRF","texto":"%SMSRB","recebido_em":"%SMSRD"}')),
+      ', com ', h('em', null, 'Sender'), ' a ', h('code', null, '*e-Mola*'), '. A tarefa leva duas acções. ',
+      'Primeiro um ', h('code', null, 'JavaScriptlet'), ', que monta o pedido — um SMS traz aspas e ',
+      'mudanças de linha, e escrito à mão o pedido partia-se:',
+      h('pre', null, 'var corpo = JSON.stringify({\n' +
+        '  action: "sms",\n' +
+        '  chave: "' + res.chave + '",\n' +
+        '  remetente: local(\'smsrf\'),\n' +
+        '  texto: local(\'smsrb\')\n' +
+        '});\n' +
+        'setLocal(\'corpo\', corpo);'),
+      'Depois um ', h('code', null, 'HTTP Request'), ' POST para o endereço acima, com ',
+      h('code', null, 'Content-Type: text/plain'), ', corpo ', h('code', null, '%corpo'),
+      ' e ', h('em', null, 'Follow Redirects'), ' ligado — o Apps Script responde sempre com um desvio, ',
+      'e sem isso a resposta perde-se.'),
     h('li', null, h('strong', null, 'Recibos a sair'), ': de 5 em 5 minutos, POST com ',
       h('code', null, '{"action":"smsPendentes","chave":"…"}'),
       '; para cada mensagem, enviar o SMS e avisar a app com ',
       h('code', null, '{"action":"smsEnviado","chave":"…","id":"MS00001"}'), '.')));
   caixa.appendChild(h('p', { class: 'muted' },
+    'No telefone, deixe o Tasker trabalhar parado: Definições → Apps → Tasker → Bateria → ' +
+    'permitir em segundo plano. Sem isso o Android adormece-o e os SMS da noite perdem-se. ' +
     'Antes de confiar nisto: faça um pagamento de teste com *898# e outro pela app e-Mola. ' +
     'Os dois SMS aparecem aqui em cima, mesmo que a app não os perceba — e com o texto à vista ' +
     'ajusta-se a leitura.'));
