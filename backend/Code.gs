@@ -459,8 +459,13 @@ function publicUser_(u) { return { email: u.email, nome: u.nome, papel: u.papel 
 //   {action, token, ...}
 function doPost(e) {
   var req;
-  try { req = JSON.parse(e.postData.contents); }
-  catch (x) { return json_({ ok: false, code: 'pedido', error: 'Pedido inválido.' }); }
+  // O telefone que reencaminha os SMS manda os campos como formulário: o texto
+  // de um SMS traz aspas e mudanças de linha que estragariam um JSON à mão.
+  if (e && e.parameter && e.parameter.action) req = e.parameter;
+  else {
+    try { req = JSON.parse(e.postData.contents); }
+    catch (x) { return json_({ ok: false, code: 'pedido', error: 'Pedido inválido.' }); }
+  }
   try { return json_(route_(req)); }
   catch (err) { return json_({ ok: false, code: err.code || 'erro', error: err.message || String(err), extra: err.extra || null }); }
 }

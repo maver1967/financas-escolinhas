@@ -61,6 +61,18 @@ check('chave errada não entra', post({ action: 'sms', chave: 'nao-e-esta', text
 check('a entrada dos SMS não precisa de sessão Google',
   post({ action: 'sms', chave: CH, texto: 'teste', remetente: 'e-Mola' }).ok);
 
+// ── 1b. o telefone pode mandar os campos como formulário ─────
+// O Tasker do telefone manda campos de formulário: o texto de um SMS traz
+// aspas e mudanças de linha, que num JSON montado à mão dariam "Pedido inválido".
+function form(o) { return JSON.parse(ctx.doPost({ parameter: o }).text); }
+var feio = 'Confirmado. Recebeu 500,00MT de "Z\u00e9" Mabjaia,\nID da transacao: 99887766.1234.ZZ9999\nConteudo: aspas e linhas';
+var rf = form({ action: 'sms', chave: CH, texto: feio, remetente: 'e-Mola' });
+check('SMS enviado como formulário entra', rf.ok === true, rf);
+check('texto com aspas e mudanças de linha chega inteiro', (linha(rf.id) || {}).texto === feio, rf.id);
+check('o formulário sem chave é recusado na mesma', form({ action: 'sms', texto: 'x' }).code === 'chave');
+check('o envio em JSON continua a funcionar',
+  post({ action: 'sms', chave: CH, texto: 'ainda em json', remetente: 'e-Mola' }).ok);
+
 // ── 2. ler o texto: várias formas do mesmo SMS ───────────────
 var formas = [
   ['PP' + '240110.1234.A5678', 1500,
