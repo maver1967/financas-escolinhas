@@ -1,6 +1,6 @@
 // Service worker: guarda a app para abrir sem rede.
 // Ao publicar uma nova versão, mudar CACHE (ex.: fe-v2).
-var CACHE = 'fe-v10';
+var CACHE = 'fe-v11';
 var FILES = ['./', './index.html', './app.js', './style.css', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
