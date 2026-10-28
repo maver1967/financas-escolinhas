@@ -11,7 +11,7 @@
 
 var CONFIG = {
   SHEET_ID: '',   // vazio = o script está ligado à folha (Extensões → Apps Script)
-  GOOGLE_CLIENT_ID: '200957289142-r2kimtq5aiv5iamjvd9drvci4sojas71.apps.googleusercontent.com',
+  GOOGLE_CLIENT_ID: '200957289142-2rmdghsbvug134t8ltfsiufeh4t2e1ar.apps.googleusercontent.com',
   SESSION_DAYS: 30,
   BACKUP_FOLDER_NAME: 'Backups Finanças Escolinhas',
   COMPROVATIVOS_FOLDER: 'Comprovativos Finanças Escolinhas',
@@ -23,7 +23,7 @@ var CONFIG = {
   BACKUP_KEEP: 30,
   TZ: 'Africa/Maputo',
   METODOS: ['numerario', 'emola', 'mpesa', 'banco'],
-  VERSAO: '5.0.1'
+  VERSAO: '5.0.2'
 };
 
 var SIM = 'sim', NAO = 'não';

@@ -10,8 +10,8 @@
 
 var CFG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbzK6AGPaRwl8K0aHDJUCH1T0J3HgiB8hL7DBS8gkWXBebGQJzM6SDknn7gvGP3lbWJuaQ/exec',
-  GOOGLE_CLIENT_ID: '200957289142-r2kimtq5aiv5iamjvd9drvci4sojas71.apps.googleusercontent.com',
-  VERSAO: '5.0.1'
+  GOOGLE_CLIENT_ID: '200957289142-2rmdghsbvug134t8ltfsiufeh4t2e1ar.apps.googleusercontent.com',
+  VERSAO: '5.0.2'
 };
 
 var S = { token: null, user: null, data: null, escola: 'TODAS', status: 'ok', desde: null, chaves: {},
