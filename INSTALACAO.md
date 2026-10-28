@@ -191,7 +191,7 @@ I comprovativi **non sono pubblici**: il file in Drive viene condiviso in sola l
 
 ## Aggiornare l'app
 
-Quando cambi i file su GitHub, modifica anche la riga `var CACHE = 'fe-v7'` in `sw.js`, per esempio `fe-v8`. Così i telefoni scaricano la nuova versione.
+Quando cambi i file su GitHub, modifica anche la riga `var CACHE = 'fe-v8'` in `sw.js`, per esempio `fe-v9`. Così i telefoni scaricano la nuova versione.
 
 ## Collaudo in locale (facoltativo)
 
