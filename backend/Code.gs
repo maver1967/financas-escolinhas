@@ -23,7 +23,7 @@ var CONFIG = {
   BACKUP_KEEP: 30,
   TZ: 'Africa/Maputo',
   METODOS: ['numerario', 'emola', 'mpesa', 'banco'],
-  VERSAO: '5.0.0'
+  VERSAO: '5.0.1'
 };
 
 var SIM = 'sim', NAO = 'não';

@@ -1,5 +1,7 @@
 # sessão do servidor de prova, criada a cada arranque
 test/.token
+# credenciais do clasp — nunca para o GitHub
+.clasprc.json
 # permissões pessoais desta máquina, não vão para o GitHub
 .claude/settings.local.json
 # capturas de ecrã do collaudo
