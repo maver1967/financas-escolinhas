@@ -189,7 +189,27 @@ Il fecho de caixa **non cambia il saldo**: registra la conta e la differenza, e 
 
 I comprovativi **non sono pubblici**: il file in Drive viene condiviso in sola lettura con gli indirizzi presenti in `Utilizadores` con *ativo = sim*. Chi viene aggiunto dopo non vede le foto già caricate; in quel caso si condivide la cartella a mano.
 
-## Aggiornare l'app
+## Aggiornare l'app, dopo l'installazione
+
+Una volta sola, su ogni computer da cui si aggiorna:
+
+1. `npm install -g @google/clasp`
+2. Attiva **API Google Apps Script** in [script.google.com/home/usersettings](https://script.google.com/home/usersettings)
+3. `clasp login` (apre il browser, un consenso)
+
+Da lì in poi, un comando solo fa tutto:
+
+```
+./atualizar.sh "cosa è cambiato"
+```
+
+Lancia le prove e **si ferma se una fallisce**, carica il backend nell'Apps Script,
+aggiorna la distribuzione esistente — l'URL `/exec` non cambia mai, quindi l'app
+non si scollega — pubblica la PWA su GitHub Pages e verifica che il backend risponda.
+
+Ricordati solo di alzare `CACHE` in `sw.js` quando cambia qualcosa nella cartella `app/`.
+
+## Aggiornare l'app a mano
 
 Quando cambi i file su GitHub, modifica anche la riga `var CACHE = 'fe-v8'` in `sw.js`, per esempio `fe-v9`. Così i telefoni scaricano la nuova versione.
 
