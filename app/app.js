@@ -423,7 +423,7 @@ function route() {
     case 'aluno': viewAluno(v, p[1]); break;
     case 'encarregados': viewEncarregados(v); break;
     case 'encarregado': viewEncarregado(v, p[1]); break;
-    case 'receber': viewReceber(v, p[1]); break;
+    case 'receber': viewReceber(v, p[1], p[2]); break;
     case 'despesas': viewDespesas(v); break;
     case 'caixa': viewCaixa(v, p[1]); break;
     case 'relatorios': viewRelatorios(v, p[1]); break;
@@ -1206,11 +1206,11 @@ function avisoFila() {
 }
 
 // ── Receber ──────────────────────────────────────────────────
-function viewReceber(v, codEnc) {
-  v.appendChild(pageHead('Receber', 'Procure a família pelo código do aluno, nome ou telefone.'));
+function viewReceber(v, codEnc, codAluno) {
+  v.appendChild(pageHead('Receber', 'Toque no aluno, ou procure por nome, código ou telefone.'));
   var aviso = avisoFila();
   if (aviso) v.appendChild(aviso);
-  if (codEnc) { painelFamilia(v, codEnc); return; }
+  if (codEnc) { painelFamilia(v, codEnc, codAluno); return; }
 
   var q = h('input', { type: 'search', class: 'search grande', placeholder: 'B014, nome do aluno, nome ou telefone do encarregado…',
     autofocus: true });
@@ -1221,7 +1221,7 @@ function viewReceber(v, codEnc) {
   function draw() {
     clear(res);
     var t = norm(q.value), t2 = t.replace(/\s/g, '');
-    if (t.length < 2) { res.appendChild(h('p', { class: 'muted' }, 'Escreva pelo menos duas letras ou o código do aluno.')); return; }
+    if (t.length < 2) { listaAlunos(res); return; }
     var encs = {};
     rows('Alunos').forEach(function (a) {
       if (S.escola !== 'TODAS' && a.escola !== S.escola) return;
@@ -1253,7 +1253,58 @@ function viewReceber(v, codEnc) {
   draw();
 }
 
-function painelFamilia(v, codEnc) {
+// Com a procura vazia mostram-se os alunos: o operador toca no nome e vai
+// direito à família, sem ter de saber o código nem escrever nada.
+function listaAlunos(res) {
+  var al = rows('Alunos').filter(function (a) {
+    return a.estado === 'ativo' && (S.escola === 'TODAS' || a.escola === S.escola);
+  });
+  if (!al.length) {
+    res.appendChild(h('p', { class: 'empty' }, S.escola === 'TODAS'
+      ? 'Ainda não há alunos inscritos.'
+      : 'Ainda não há alunos activos nesta escola.'));
+    return;
+  }
+  al.sort(function (a, b) { return norm(a.nome_completo) < norm(b.nome_completo) ? -1 : 1; });
+  var dividas = dividasPorAluno();
+  res.appendChild(h('p', { class: 'muted' },
+    al.length + (al.length === 1 ? ' aluno activo' : ' alunos activos')));
+  al.forEach(function (a) {
+    var fin = financeiroDoAluno(a.codigo);
+    var quem = h('div', null,
+      h('strong', null, a.nome_completo),
+      h('small', { class: 'muted' }, ' ' + a.codigo + (S.escola === 'TODAS' ? ' · ' + escolaNome(a.escola) : '')),
+      h('div', null, h('small', { class: fin ? 'muted' : 'warn' }, fin
+        ? fin.nome_completo
+        : 'Sem responsável financeiro — ligue-o na ficha do aluno.')));
+    if (!fin) {
+      res.appendChild(h('a', { class: 'result aluno sem-fin', href: '#/aluno/' + a.codigo },
+        quem, h('div', { class: 'saldo' }, h('small', { class: 'muted' }, 'Ficha →'))));
+      return;
+    }
+    var divida = dividas[a.codigo] || 0;
+    res.appendChild(h('a', { class: 'result aluno', href: '#/receber/' + fin.codigo + '/' + a.codigo },
+      quem,
+      h('div', { class: 'saldo' },
+        h('strong', { class: divida > 0 ? 'devedor' : 'ok' }, divida > 0 ? fmtMT(divida) : 'em dia'))));
+  });
+}
+
+// O que falta a cada aluno, numa passagem só. Mostra-se o do aluno e não o da
+// família: com quatro irmãos, o total da família aparecia quatro vezes e lia-se
+// como se cada um devesse tudo. Chamar dividaTotal por linha relia as tabelas
+// todas outra vez, e numa lista longa isso nota-se no telemóvel.
+function dividasPorAluno() {
+  var al = alocadoPorCobranca(), porAluno = {};
+  rows('Cobrancas').forEach(function (c) {
+    if (c.estado === 'anulada') return;
+    var falta = mt(Math.max(0, mt(Number(c.valor_liquido) - mt(al[c.id] || 0))));
+    if (falta > 0.004) porAluno[c.aluno] = mt((porAluno[c.aluno] || 0) + falta);
+  });
+  return porAluno;
+}
+
+function painelFamilia(v, codEnc, codAluno) {
   var e = find('Encarregados', codEnc);
   if (!e) { v.appendChild(h('p', { class: 'empty' }, 'Encarregado não encontrado.')); return; }
   v.appendChild(h('a', { class: 'back', href: '#/receber' }, '← Procurar outra família'));
@@ -1273,11 +1324,11 @@ function painelFamilia(v, codEnc) {
     v.appendChild(h('section', { class: 'panel soft' }, h('p', null, 'Ligue esta pessoa a um aluno antes de receber pagamentos.')));
     return;
   }
-  v.appendChild(formPagamento(e, divida, credito));
+  v.appendChild(formPagamento(e, divida, credito, codAluno));
   v.appendChild(panelHistoricoFamilia(e));
 }
 
-function formPagamento(e, divida, credito) {
+function formPagamento(e, divida, credito, codAluno) {
   var p = h('section', { class: 'panel' }, h('h2', null, 'Novo pagamento'));
   var offline = !navigator.onLine;
   var filhos = filhosDe(e.codigo);
@@ -1291,6 +1342,9 @@ function formPagamento(e, divida, credito) {
   var fObs = h('input', { type: 'text', placeholder: 'Observação (opcional)' });
   var fAluno = h('select', null, h('option', { value: '' }, 'Toda a família'),
     filhos.map(function (a) { return h('option', { value: a.codigo }, a.nome_completo); }));
+  // Quem tocou no nome de um aluno na lista já disse por quem vem pagar:
+  // o mesmo aluno fica escolhido e as dívidas dele à cabeça da repartição.
+  if (codAluno && filhos.some(function (a) { return a.codigo === codAluno; })) fAluno.value = codAluno;
   var usaCredito = h('input', { type: 'checkbox', checked: credito > 0 && !offline, disabled: credito <= 0 || offline });
 
   var linhaRef = h('div', { class: 'field' }, h('label', null, 'Referência'), fRef);
