@@ -3508,6 +3508,11 @@ function confCell(table, col, r) {
   return v;
 }
 
+// Tabelas de configuração onde o servidor aceita apagar. Os movimentos nunca:
+// ali anula-se, com motivo e autor.
+var APAGAVEIS = ['Escolas', 'AnosLetivos', 'TiposCobranca', 'TabelaPrecos', 'Categorias',
+  'Contas', 'RegrasMulta', 'Descontos', 'Utilizadores'];
+
 function viewConfig(v, table) {
   if (table !== 'Cobrancas' && !CONF[table]) table = 'Escolas';
   v.appendChild(pageHead('Configuração'));
@@ -3541,8 +3546,19 @@ function viewConfig(v, table) {
       if (rec) data = Object.assign({}, rec, data);
       busy(s, gravar(table, data, !rec)).then(function () { route(); }, function () {});
     }, 'primary');
+    // Só se apaga o que ainda ninguém usou — quem decide isso é o servidor, que
+    // vê as tabelas todas. Aqui só se pergunta e se mostra o que ele responder.
+    var apagar = rec && APAGAVEIS.indexOf(table) >= 0 ? btn('Apagar', function () {
+      var nome = rec.nome || rec.nome_completo || rec[KEYS[table]];
+      if (!window.confirm('Apagar ' + nome + '?')) return;
+      busy(apagar, api('apagarConfig', { table: table, id: rec[KEYS[table]] })).then(function () {
+        removeLocal(table, rec[KEYS[table]]);
+        toast('Apagado.', 'ok');
+        route();
+      }, function (e) { toast(e.message, 'erro'); });
+    }, 'ghost perigo') : null;
     slot.appendChild(h('div', { class: 'sub-panel' }, h('h3', null, rec ? 'Editar' : 'Novo registo'), f.el,
-      h('div', { class: 'form-actions' }, btn('Cancelar', function () { clear(slot); }, 'ghost'), s)));
+      h('div', { class: 'form-actions' }, btn('Cancelar', function () { clear(slot); }, 'ghost'), apagar, s)));
     slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 

@@ -188,6 +188,8 @@ main { margin-left: var(--nav-w); padding: 24px 28px 64px; max-width: 1200px; }
 .btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 .btn.ghost { background: transparent; }
 .btn.small { padding: 5px 12px; min-height: 34px; font-size: .88rem; }
+.btn.perigo { color: var(--err); border-color: var(--err); }
+.btn.perigo:hover { background: var(--err); color: #fff; }
 .btn:disabled { opacity: .6; cursor: wait; }
 
 /* ligações aluno ↔ encarregado */

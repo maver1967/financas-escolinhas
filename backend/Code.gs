@@ -494,6 +494,8 @@ function route_(req) {
       return withLock_(function () { _cache = {}; return save_(user, req.table, req.record || {}, !!req.isNew, !!req.force); });
     case 'removeLink':
       return withLock_(function () { _cache = {}; return removeLink_(user, req.id); });
+    case 'apagarConfig':
+      return withLock_(function () { _cache = {}; return apagarConfig_(user, req); });
 
     // fase 2
     case 'gerarCobrancas':
@@ -849,6 +851,61 @@ function newKey_(table, o) {
 }
 
 // Remover uma ligação aluno ↔ encarregado (única remoção física permitida)
+// ── apagar um registo de configuração ──────────────────────
+// Nos movimentos nada se apaga: ali anula-se, com motivo, data e autor. Mas uma
+// categoria escrita à pressa, que ninguém chegou a usar, não é história nenhuma
+// — fica só a estorvar a lista. Por isso apaga-se, e só, quando nada a aponta.
+// Cada tabela diz aqui onde pode estar a ser usada; o que não está nesta lista
+// não se apaga de todo.
+var USOS_CONFIG = {
+  Escolas: [['Alunos', 'escola'], ['Cobrancas', 'escola'], ['Despesas', 'escola'],
+            ['Contas', 'escola'], ['TabelaPrecos', 'escola'], ['RegrasMulta', 'escola']],
+  AnosLetivos: [['Cobrancas', 'ano'], ['TabelaPrecos', 'ano'], ['RegrasMulta', 'ano'],
+                ['Descontos', 'ano']],
+  TiposCobranca: [['Cobrancas', 'tipo_cobranca'], ['TabelaPrecos', 'tipo_cobranca'],
+                  ['Descontos', 'tipo_cobranca']],
+  TabelaPrecos: [],
+  Categorias: [['Categorias', 'categoria_pai'], ['TiposCobranca', 'categoria'],
+               ['Despesas', 'categoria'], ['Despesas', 'subcategoria'],
+               ['Recebimentos', 'categoria']],
+  Contas: [['Recebimentos', 'conta'], ['Despesas', 'conta'],
+           ['Transferencias', 'conta_origem'], ['Transferencias', 'conta_destino']],
+  RegrasMulta: [],
+  Descontos: [],
+  Utilizadores: []
+};
+
+function apagarConfig_(user, p) {
+  if (!user || user.papel !== 'admin') throw fail_('permissao', 'Só o administrador apaga registos.');
+  var table = trim_(p.table);
+  var usos = USOS_CONFIG[table];
+  if (!usos) throw fail_('validacao', 'Esta tabela não se apaga.');
+  var id = trim_(p.id);
+  var linha = findBy_(table, SCHEMA[table].key, id);
+  if (!linha) throw fail_('validacao', 'Registo não encontrado.');
+  // Apagar-se a si próprio deixava a escola sem quem administrasse.
+  if (table === 'Utilizadores' && norm_(id) === norm_(user.email)) {
+    throw fail_('validacao', 'Não pode apagar a sua própria conta.');
+  }
+
+  // Conta-se também o que está anulado: a linha anulada continua a mostrar
+  // este código, e apagar deixava-a a apontar para o vazio.
+  var presos = [];
+  usos.forEach(function (u) {
+    var n = readTable_(u[0]).rows.filter(function (r) { return trim_(r[u[1]]) === id; }).length;
+    if (n) presos.push(n + ' em ' + u[0]);
+  });
+  if (presos.length) {
+    throw fail_('validacao', 'Não se apaga porque já está a ser usado: ' + presos.join(', ') +
+      '. Ponha-o como inactivo.');
+  }
+
+  sheet_(table).deleteRow(linha._row);
+  _cache = {};
+  audit_(user, 'apagar', table, id, linha, null);
+  return { ok: true, table: table, id: id };
+}
+
 function removeLink_(user, id) {
   var r = findBy_('AlunoEncarregado', 'id', id);
   if (!r) throw fail_('naoexiste', 'Ligação não encontrada.');

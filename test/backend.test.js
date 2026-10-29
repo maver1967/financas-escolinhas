@@ -111,6 +111,41 @@ var ao = post({ action: 'save', token: TO, table: 'Alunos', record: { nome_compl
 check('operatore iscrive alunni', ao.ok && ao.record.codigo === 'N001' && ao.record.atualizado_por === 'op@escola.org', ao);
 check('tabella di sistema non scrivibile', save('Cobrancas', { id: 'x' }, true).code === 'tabela');
 
+// 8b. apagare un record di configurazione
+function apagar(table, id, tok) { return post({ action: 'apagarConfig', token: tok || T, table: table, id: id }); }
+function conta(table) { return post({ action: 'bootstrap', token: T }).data[table].length; }
+
+save('Categorias', { codigo: 'DES_ERRO', nome: 'Escrita por engano', tipo: 'despesa', ativa: 'sim' }, true);
+var antes = conta('Categorias');
+check('categoria nova aparece', antes > 0 && post({ action: 'bootstrap', token: T }).data.Categorias
+  .some(function (c) { return c.codigo === 'DES_ERRO'; }));
+check('categoria por usar apaga-se', apagar('Categorias', 'DES_ERRO').ok === true);
+check('e desaparece mesmo', conta('Categorias') === antes - 1);
+check('apagar outra vez diz que nao existe', apagar('Categorias', 'DES_ERRO').code === 'validacao');
+
+// uma categoria com filhas nao se apaga
+save('Categorias', { codigo: 'DES_PAI', nome: 'Pai', tipo: 'despesa', ativa: 'sim' }, true);
+save('Categorias', { codigo: 'DES_FILHA', nome: 'Filha', tipo: 'despesa', categoria_pai: 'DES_PAI', ativa: 'sim' }, true);
+var rPai = apagar('Categorias', 'DES_PAI');
+check('categoria com subcategoria nao se apaga', rPai.ok !== true && /Categorias/.test(rPai.error || ''), rPai);
+check('a subcategoria apaga-se', apagar('Categorias', 'DES_FILHA').ok === true);
+check('e depois o pai tambem', apagar('Categorias', 'DES_PAI').ok === true);
+
+// uma escola em uso nao se apaga
+var rEsc = apagar('Escolas', 'B');
+check('escola em uso nao se apaga', rEsc.ok !== true && /usado/.test(rEsc.error || ''), rEsc);
+check('a escola continua la', post({ action: 'bootstrap', token: T }).data.Escolas
+  .some(function (e) { return e.codigo === 'B'; }));
+
+// o administrador nao se apaga a si proprio
+var rEu = apagar('Utilizadores', 'admin@escola.org');
+check('nao se apaga a propria conta', rEu.ok !== true && /pr\u00f3pria/.test(rEu.error || ''), rEu);
+
+// so o administrador, e so as tabelas de configuracao
+check('operador nao apaga', apagar('Categorias', 'DES_ALIM', TO).code === 'permissao');
+check('tabela de movimentos nao se apaga', apagar('Despesas', 'DP00001').code === 'validacao');
+check('tabela inventada nao se apaga', apagar('NaoExiste', 'x').code === 'validacao');
+
 // 9. audit e logout
 check('auditoria scritta', env.__ss.getSheetByName('Auditoria').getLastRow() > 15);
 check('logout', post({ action: 'logout', token: TO }).ok && post({ action: 'bootstrap', token: TO }).code === 'sessao');
