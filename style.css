@@ -238,8 +238,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
 /* procura de família */
 .search.grande { font-size: 1.1rem; padding: 12px 14px; }
-.result.familia { text-decoration: none; color: inherit; align-items: flex-start; }
-.result.familia:hover { border-color: var(--brand); background: var(--brand-soft); }
+.result.familia, .result.aluno { text-decoration: none; color: inherit; align-items: flex-start; }
+.result.familia:hover, .result.aluno:hover { border-color: var(--brand); background: var(--brand-soft); }
+.result.aluno.sem-fin { border-style: dashed; }
 .result .saldo { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
 .result .saldo strong { font-variant-numeric: tabular-nums; }
 .familia-topo { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
