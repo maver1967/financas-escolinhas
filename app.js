@@ -2029,6 +2029,35 @@ function abrirFormDespesa(v) {
       fCat.appendChild(h('option', { value: c.codigo + '>' + sc.codigo }, '\u00a0\u00a0\u00a0↳ ' + sc.nome));
     });
   });
+  // A categoria diz a rubrica, isto diz a coisa: óleo, açúcar, arroz. As sugestões
+  // saem das subcategorias dessa rubrica e do que já se escreveu antes nela, para
+  // ninguém ter de configurar uma lista de mercearia que nunca estaria completa.
+  var idLista = 'esp-' + Math.random().toString(36).slice(2, 8);
+  var sugestoes = h('datalist', { id: idLista });
+  var fDesc = h('input', { type: 'text', list: idLista, maxlength: '60',
+    placeholder: 'óleo, açúcar, arroz…' });
+
+  function verSugestoes() {
+    clear(sugestoes);
+    var cat = String(fCat.value || '').split('>')[0];
+    if (!cat) return;
+    var vistos = {}, nomes = [];
+    function junta(txt) {
+      var t = String(txt || '').trim();
+      if (!t || vistos[norm(t)]) return;
+      vistos[norm(t)] = true;
+      nomes.push(t);
+    }
+    subcategoriasDe(cat).forEach(function (sc) { junta(sc.nome); });
+    despesasTodas().forEach(function (d) {
+      if (d.estado === 'anulada' || d.categoria !== cat) return;
+      junta(d.descricao);
+    });
+    nomes.slice(0, 40).forEach(function (n) { sugestoes.appendChild(h('option', { value: n })); });
+  }
+  fCat.addEventListener('change', verSugestoes);
+  verSugestoes();
+
   // Por omissão a despesa é comum a toda a rede; muda-se aqui se for de uma escola.
   var fEscola = h('select', null, h('option', { value: 'REDE' }, 'Todas (despesa comum da rede)'),
     escolasAtivas().map(function (e) { return h('option', { value: e.codigo }, e.nome); }));
@@ -2098,7 +2127,7 @@ function abrirFormDespesa(v) {
     if (!conta) { toast('Não há nenhuma conta activa.', 'erro'); return; }
     var partes = fCat.value.split('>');
     var p = { data: fData.value || hoje(), escola: fEscola.value,
-      categoria: partes[0], subcategoria: partes[1] || '',
+      categoria: partes[0], subcategoria: partes[1] || '', descricao: fDesc.value.trim(),
       valor: mt(fValor.value), conta: conta.codigo, metodo: 'numerario',
       ref_cliente: novaRefCliente() };
     var nome = fCat.options[fCat.selectedIndex].textContent.replace(/^[\s\u00a0↳]+/, '');
@@ -2122,6 +2151,8 @@ function abrirFormDespesa(v) {
       h('div', { class: 'field' }, h('label', null, 'Data'), fData),
       h('div', { class: 'field' }, h('label', null, 'Valor (MT)', h('span', { class: 'req' }, ' *')), fValor),
       h('div', { class: 'field full' }, h('label', null, 'Categoria', h('span', { class: 'req' }, ' *')), fCat),
+      h('div', { class: 'field full' }, h('label', null, 'O quê'), fDesc, sugestoes,
+        h('small', { class: 'muted' }, 'Opcional. Se ficar vazio, fica o nome da categoria.')),
       h('div', { class: 'field full' }, h('label', null, 'Escola'), fEscola),
       h('div', { class: 'field full' }, h('label', null, 'Comprovativo (foto ou PDF)'), fFoto, previa)),
     saldoAviso,
