@@ -497,24 +497,58 @@ function viewInicio(v) {
     h('p', null, 'Fase 6: SMS automáticos para toda a gente e multas, se a escola decidir as regras.')));
 }
 
+// De que escola é o dinheiro de um recibo que ainda não cobriu nenhuma cobrança:
+// do aluno nomeado no recibo, ou, se a família só tem filhos numa escola, dessa.
+// Sem isso um pagamento adiantado desaparecia da escola e só aparecia em Todas.
+function escolaDoRecibo(r) {
+  if (r.aluno) {
+    var a = find('Alunos', r.aluno);
+    if (a) return a.escola;
+  }
+  var es = {};
+  filhosDe(r.encarregado).forEach(function (f) { es[f.escola] = true; });
+  var lista = Object.keys(es);
+  return lista.length === 1 ? lista[0] : null;
+}
+
 // O mês corrente: quanto entrou, quanto falta, quem está em atraso.
 function panelMesCorrente() {
   var mes = hoje().slice(0, 7);
-  var p = h('section', { class: 'panel' }, h('h2', null, 'Mês de ' + MESES[Number(mes.slice(5, 7)) - 1]));
+  var p = h('section', { class: 'panel' }, h('h2', null, 'Mês de ' + MESES[Number(mes.slice(5, 7)) - 1] +
+    (S.escola === 'TODAS' ? '' : ' · ' + escolaNome(S.escola))));
   var alunosEscola = {};
   rows('Alunos').forEach(function (a) { alunosEscola[a.codigo] = a.escola; });
   function daEscola(cod) { return S.escola === 'TODAS' || alunosEscola[cod] === S.escola; }
 
-  var recebido = 0;
+  var porRecibo = {};
+  rows('Alocacoes').forEach(function (a) {
+    (porRecibo[a.recebimento] = porRecibo[a.recebimento] || []).push(a);
+  });
+
+  // Com uma escola escolhida conta-se o que de cada recibo foi parar a cobranças
+  // dessa escola, e não o recibo inteiro: uma família com filhos em duas escolas
+  // fazia o mesmo dinheiro aparecer nas duas. O dinheiro ainda em crédito, por não
+  // cobrir nada, não é de escola nenhuma e só entra no total de Todas.
+  var recebido = 0, daCasa = {};
   rows('Recebimentos').forEach(function (r) {
-    if (r.estado === 'anulado' || String(r.data).slice(0, 7) !== mes) return;
-    if (S.escola !== 'TODAS') {
-      // o recibo conta para a escola quando cobre cobranças dessa escola
-      var toca = rows('Alocacoes').filter(function (a) { return a.recebimento === r.numero_recibo; })
-        .some(function (a) { var c = find('Cobrancas', a.cobranca); return c && c.escola === S.escola; });
-      if (!toca) return;
+    if (r.estado === 'anulado') return;
+    var doMes = String(r.data).slice(0, 7) === mes;
+    if (S.escola === 'TODAS') {
+      daCasa[r.numero_recibo] = Number(r.valor);
+      if (doMes) recebido = mt(recebido + Number(r.valor));
+      return;
     }
-    recebido = mt(recebido + Number(r.valor));
+    var soma = 0, alocado = 0;
+    (porRecibo[r.numero_recibo] || []).forEach(function (a) {
+      alocado = mt(alocado + Number(a.valor));
+      var c = find('Cobrancas', a.cobranca);
+      if (c && c.escola === S.escola) soma = mt(soma + Number(a.valor));
+    });
+    var sobra = mt(Number(r.valor) - alocado);
+    if (sobra > 0.004 && escolaDoRecibo(r) === S.escola) soma = mt(soma + sobra);
+    if (soma <= 0.004) return;
+    daCasa[r.numero_recibo] = soma;
+    if (doMes) recebido = mt(recebido + soma);
   });
 
   var al = alocadoPorCobranca();
@@ -548,7 +582,7 @@ function panelMesCorrente() {
     h('div', null, h('small', null, 'Cobranças em atraso'), h('strong', null, String(atrasadas))),
     h('div', null, h('small', null, 'Famílias em atraso'), h('strong', null, String(Object.keys(familias).length)))));
 
-  var ultimos = rows('Recebimentos').filter(function (r) { return r.estado !== 'anulado'; })
+  var ultimos = rows('Recebimentos').filter(function (r) { return r.estado !== 'anulado' && daCasa[r.numero_recibo] !== undefined; })
     .sort(function (a, b) { return String(a.data) > String(b.data) ? -1 : String(a.data) < String(b.data) ? 1 : (a.numero_recibo > b.numero_recibo ? -1 : 1); })
     .slice(0, 6);
   if (ultimos.length) {
@@ -560,7 +594,10 @@ function panelMesCorrente() {
         h('td', { 'data-l': 'Data' }, fmtData(r.data)),
         h('td', { 'data-l': 'Recibo' }, h('span', { class: 'code' }, r.numero_recibo)),
         h('td', { 'data-l': 'Família' }, e ? e.nome_completo : r.encarregado),
-        h('td', { 'data-l': 'Valor', class: 'num strong' }, fmtMT(r.valor))));
+        h('td', { 'data-l': 'Valor', class: 'num strong' }, fmtMT(r.valor),
+          // O recibo vale o que vale; quando só parte dele é desta escola, diz-se.
+          daCasa[r.numero_recibo] < Number(r.valor) - 0.004
+            ? h('small', { class: 'muted' }, ' (' + fmtMT(daCasa[r.numero_recibo]) + ' aqui)') : null)));
     });
     p.appendChild(h('div', { class: 'table-wrap' }, h('table', { class: 'tbl' },
       h('thead', null, h('tr', null, ['Data', 'Recibo', 'Família', 'Valor'].map(function (t) { return h('th', null, t); }))), tb)));
