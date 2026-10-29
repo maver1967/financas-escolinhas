@@ -1512,11 +1512,17 @@ function formPagamento(e, divida, credito, codAluno) {
       conta: fConta.value, referencia_externa: fRef.value.trim(), observacao: fObs.value.trim(),
       data: fData.value || hoje(), alocacoes: r.alocacoes, ref_cliente: novaRefCliente() };
     if (r.usaCredito.length) payload.credito = r.usaCredito;
+    // Só se pergunta o que foge ao costume: dinheiro que sobra para crédito,
+    // crédito que se gasta, data recuada. Um recebimento comum guarda-se sem
+    // perguntar — quem atende cinquenta famílias por dia não pode carregar
+    // duas vezes em cada uma. Nada se perde: um recibo errado anula-se com motivo.
     var sobra = mt(r.dinheiro - r.somaDinheiro);
-    var aviso = 'Receber ' + fmtMT(r.dinheiro) + ' de ' + e.nome_completo + '?' +
-      (r.somaCredito > 0 ? '\n' + fmtMT(r.somaCredito) + ' saem do crédito.' : '') +
-      (sobra > 0.004 ? '\n' + fmtMT(sobra) + ' ficam em crédito da família.' : '');
-    if (!window.confirm(aviso)) return;
+    var notas = [];
+    if (r.somaCredito > 0) notas.push(fmtMT(r.somaCredito) + ' saem do crédito.');
+    if (sobra > 0.004) notas.push(fmtMT(sobra) + ' ficam em crédito da família.');
+    if ((fData.value || hoje()) !== hoje()) notas.push('Data: ' + fmtData(fData.value) + '.');
+    if (notas.length && !window.confirm('Receber ' + fmtMT(r.dinheiro) + ' de ' + e.nome_completo +
+      '?\n' + notas.join('\n'))) return;
 
     if (!navigator.onLine) {
       if (payload.credito) { toast('Sem rede não é possível usar o crédito. Desligue essa opção.', 'erro'); return; }
@@ -2096,7 +2102,9 @@ function abrirFormDespesa(v) {
       valor: mt(fValor.value), conta: conta.codigo, metodo: 'numerario',
       ref_cliente: novaRefCliente() };
     var nome = fCat.options[fCat.selectedIndex].textContent.replace(/^[\s\u00a0↳]+/, '');
-    if (!window.confirm('Registar ' + fmtMT(p.valor) + ' de ' + nome + '?\nSai de ' + conta.nome + '.')) return;
+    // Como no recebimento: só se pergunta quando a data não é a de hoje.
+    if (p.data !== hoje() && !window.confirm('Registar ' + fmtMT(p.valor) + ' de ' + nome +
+      '?\nData: ' + fmtData(p.data) + '. Sai de ' + conta.nome + '.')) return;
     if (!navigator.onLine) {
       if (foto) { toast('Sem rede a foto não sobe. Guarde a despesa depois, com ligação.', 'erro'); return; }
       enfileirar('despesa', p);
