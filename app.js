@@ -2783,9 +2783,13 @@ function relMapa() {
       if (a.escola !== b.escola) return a.escola < b.escola ? -1 : 1;
       return norm(a.nome_completo) < norm(b.nome_completo) ? -1 : 1;
     });
-  var porAluno = {};
+  // A matrícula paga-se uma vez por ano e por isso não tem mês: fica na
+  // primeira coluna, antes dos meses, como na folha que se usava em papel.
+  var porAluno = {}, matricula = {};
   rows('Cobrancas').forEach(function (c) {
-    if (String(c.ano) !== String(ano.ano) || c.tipo_cobranca !== 'MENSALIDADE') return;
+    if (String(c.ano) !== String(ano.ano)) return;
+    if (c.tipo_cobranca === 'MATRICULA') { matricula[c.aluno] = c; return; }
+    if (c.tipo_cobranca !== 'MENSALIDADE') return;
     var m = Number(String(c.mes_referencia).slice(5, 7));
     (porAluno[c.aluno] = porAluno[c.aluno] || {})[m] = c;
   });
@@ -2798,31 +2802,41 @@ function relMapa() {
     if (mt(al[c.id] || 0) > 0) return { k: 'parcial', t: fmtMT(falta).replace(' MT', '') };
     return { k: 'aberta', t: fmtMT(falta).replace(' MT', '') };
   }
-  var cols = ['Aluno', 'Código', 'Escola'].concat(meses.map(function (m) { return MESES[m - 1].slice(0, 3); })).concat(['Em falta']);
+  // Com uma escola escolhida a coluna da escola diria sempre o mesmo: sai,
+  // que numa folha destas cada milímetro conta.
+  var porEscola = S.escola === 'TODAS';
+  var cols = ['Aluno', 'Código'].concat(porEscola ? ['Escola'] : [])
+    .concat(['Matríc.'])
+    .concat(meses.map(function (m) { return MESES[m - 1].slice(0, 3); }))
+    .concat(['Em falta']);
   var linhas = alunos.map(function (a) {
-    var cells = [], csv = [a.nome_completo, a.codigo, escolaNome(a.escola)];
+    var cells = [], csv = [a.nome_completo, a.codigo];
+    if (porEscola) csv.push(escolaNome(a.escola));
     var falta = 0;
-    meses.forEach(function (m) {
-      var c = (porAluno[a.codigo] || {})[m];
+    function junta(c) {
       var e = estadoCelula(c);
       if (c && c.estado !== 'anulada') falta = mt(falta + Math.max(0, mt(Number(c.valor_liquido) - (al[c.id] || 0))));
       cells.push({ cls: 'mapa ' + e.k, v: e.t });
       csv.push(e.k === 'sem' ? '' : e.k === 'paga' ? 'paga' : e.k === 'anulada' ? 'anulada' : csvNum(
         Math.max(0, mt(Number(c.valor_liquido) - (al[c.id] || 0)))));
-    });
+    }
+    junta(matricula[a.codigo]);
+    meses.forEach(function (m) { junta((porAluno[a.codigo] || {})[m]); });
     csv.push(csvNum(falta));
     return {
       csv: csv,
-      el: [h('a', { href: '#/aluno/' + a.codigo }, a.nome_completo), a.codigo, escolaNome(a.escola)]
+      el: [h('a', { href: '#/aluno/' + a.codigo }, a.nome_completo), a.codigo]
+        .concat(porEscola ? [escolaNome(a.escola)] : [])
         .concat(cells).concat([{ num: true, v: falta > 0 ? h('strong', null, fmtMT(falta)) : '—' }])
     };
   });
   return {
-    titulo: 'Mapa de mensalidades ' + ano.ano,
+    titulo: 'Mapa de matrícula e mensalidades ' + ano.ano +
+      (S.escola === 'TODAS' ? '' : ' · ' + escolaNome(S.escola)),
     sub: alunos.length + ' alunos activos · ' + MESES[meses[0] - 1] + ' a ' + MESES[meses[meses.length - 1] - 1],
     cols: cols, linhas: linhas, compacto: true,
-    legenda: [['paga', 'Paga'], ['parcial', 'Parcial'], ['aberta', 'Em aberto'], ['atraso', 'Em atraso'],
-              ['anulada', 'Anulada'], ['sem', 'Sem cobrança']]
+    legenda: [['paga', 'Paga'], ['parcial', 'Parte paga'], ['aberta', 'Por pagar, ainda não vencida'],
+              ['atraso', 'Por pagar, em atraso'], ['anulada', 'Anulada'], ['sem', 'Sem cobrança']]
   };
 }
 
@@ -3176,7 +3190,7 @@ function relExtrato() {
 var RELATORIOS = {
   devedores: { label: 'Situação devedora', build: relDevedores, filtros: ['ano'] },
   extrato: { label: 'Extrato do encarregado', build: relExtrato, filtros: [] },
-  mapa: { label: 'Mapa de mensalidades', build: relMapa, filtros: ['ano'] },
+  mapa: { label: 'Mapa do ano', build: relMapa, filtros: ['ano'] },
   balancete: { label: 'Balancete mensal', build: relBalancete, filtros: ['mes'] },
   fluxo: { label: 'Fluxo de caixa', build: relFluxo, filtros: ['periodo'] },
   previsto: { label: 'Previsto vs recebido', build: relPrevisto, filtros: ['ano'] },

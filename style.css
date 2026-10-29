@@ -340,20 +340,24 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .rel-cab .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .tbl tfoot tr.totais td { border-top: 2px solid var(--line); font-weight: 700; background: var(--brand-soft); }
 .tbl.compacta td, .tbl.compacta th { padding: 4px 6px; font-size: .85rem; }
+/* O nome numa linha só: partido em três, cada aluno ocupava o triplo da altura
+   e a folha deixava de caber numa página. A tabela desliza para o lado. */
+.tbl.compacta td:first-child, .tbl.compacta th:first-child { white-space: nowrap; }
 
 /* mapa de mensalidades */
 td.mapa, i.mapa { text-align: center; font-size: .8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 i.mapa { display: inline-block; width: 15px; height: 15px; border-radius: 3px; vertical-align: -3px; margin-right: 5px; }
 .mapa.paga { background: #d8efe0; color: #14532d; }
 .mapa.parcial { background: #fdf0d5; color: #7a4a05; }
-.mapa.aberta { background: #eceef0; color: #43504c; }
+/* Por pagar é vermelho: o claro ainda não venceu, o forte já está em atraso. */
+.mapa.aberta { background: #fdeceb; color: #9a4b44; }
 .mapa.atraso { background: #fadcda; color: #8b1d16; font-weight: 600; }
 .mapa.anulada { background: transparent; color: var(--muted); text-decoration: line-through; }
 .mapa.sem { color: var(--line); }
 @media (prefers-color-scheme: dark) {
   .mapa.paga { background: #1d4030; color: #a9e3c2; }
   .mapa.parcial { background: #40351b; color: #f0c97e; }
-  .mapa.aberta { background: #28302e; color: #9fb0aa; }
+  .mapa.aberta { background: #3a211f; color: #e0a39c; }
   .mapa.atraso { background: #4a211e; color: #ffb3ab; }
 }
 .legenda { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: .85rem; color: var(--muted); }
