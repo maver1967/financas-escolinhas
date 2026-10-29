@@ -1589,15 +1589,71 @@ function textoLembrete(enc, divida, atrasadas) {
     '. Agradecemos a sua atenção.';
 }
 
+// Meses seguidos juntam-se num intervalo: "Fevereiro a Setembro" diz o mesmo
+// que oito linhas e cabe numa mensagem que se lê no telefone.
+function intervalosDeMeses(lista) {
+  var ms = lista.slice().sort(function (a, b) { return a - b; }), saida = [], i = 0;
+  while (i < ms.length) {
+    var j = i;
+    while (j + 1 < ms.length && ms[j + 1] === ms[j] + 1) j++;
+    saida.push(i === j ? MESES[ms[i] - 1]
+      : j === i + 1 ? MESES[ms[i] - 1] + ' e ' + MESES[ms[j] - 1]
+      : MESES[ms[i] - 1] + ' a ' + MESES[ms[j] - 1]);
+    i = j + 1;
+  }
+  return saida.join(', ');
+}
+
+// O extracto conta as três coisas que a família quer saber: o que já pagou,
+// o que falta e quanto dá ao todo. Só com as dívidas, a mensagem parecia uma
+// cobrança cega — quem pagou dez meses merece vê-lo escrito.
 function textoExtrato(enc) {
-  var linhas = dividasFamilia(enc.codigo).map(function (d) {
-    var a = find('Alunos', d.cob.aluno);
-    return '· ' + (a ? primeiroNome(a.nome_completo) : d.cob.aluno) + ' — ' + d.cob.descricao + ': ' + fmtMT(d.falta);
+  var al = alocadoPorCobranca();
+  var grupos = [], porAluno = {};
+  filhosDe(enc.codigo).forEach(function (a) {
+    if (porAluno[a.codigo]) return;
+    porAluno[a.codigo] = { aluno: a, pagoMes: [], pagoOutros: [], faltaMes: [], faltaOutros: [],
+      parcial: [], falta: 0, atraso: false };
+    grupos.push(porAluno[a.codigo]);
   });
-  var cred = creditoFamilia(enc.codigo);
-  return 'Situação de ' + enc.nome_completo + ':\n' + (linhas.join('\n') || 'Sem dívidas em aberto.') +
-    '\nTotal em falta: ' + fmtMT(dividaTotal(enc.codigo)) +
-    (cred > 0 ? '\nCrédito a favor: ' + fmtMT(cred) : '');
+  rows('Cobrancas').forEach(function (c) {
+    var g = porAluno[c.aluno];
+    if (!g || c.estado === 'anulada') return;
+    var pago = mt(al[c.id] || 0);
+    var falta = mt(Math.max(0, mt(Number(c.valor_liquido) - pago)));
+    var mes = c.tipo_cobranca === 'MENSALIDADE' ? Number(String(c.mes_referencia).slice(5, 7)) : 0;
+    if (falta <= 0.004) {
+      if (mes) g.pagoMes.push(mes); else g.pagoOutros.push(c.descricao);
+      return;
+    }
+    g.falta = mt(g.falta + falta);
+    if (emAtraso(c)) g.atraso = true;
+    if (pago > 0.004) g.parcial.push((mes ? MESES[mes - 1] : c.descricao) + ', faltam ' + fmtMT(falta));
+    else if (mes) g.faltaMes.push(mes);
+    else g.faltaOutros.push(c.descricao);
+  });
+
+  var partes = ['Bom dia, ' + primeiroNome(enc.nome_completo) + '. Situação em ' + fmtData(hoje()) + ':'];
+  grupos.forEach(function (g) {
+    var bloco = ['', '*' + g.aluno.nome_completo + '* (' + g.aluno.codigo + ')'];
+    var pago = g.pagoOutros.concat(g.pagoMes.length ? [intervalosDeMeses(g.pagoMes)] : []);
+    bloco.push('Pago: ' + (pago.length ? pago.join('; ') : 'ainda nada'));
+    if (g.parcial.length) bloco.push('Parte paga: ' + g.parcial.join('; '));
+    var falta = g.faltaOutros.concat(g.faltaMes.length ? [intervalosDeMeses(g.faltaMes)] : []);
+    if (falta.length) bloco.push('Por pagar: ' + falta.join('; '));
+    // O total do aluno vai em linha própria: colado aos meses, somava também o
+    // que falta de um mês só em parte e parecia ser só desses meses.
+    bloco.push(g.falta > 0.004
+      ? 'Em falta: ' + fmtMT(g.falta) + (g.atraso ? ' (há valores em atraso)' : '')
+      : 'Está tudo pago.');
+    partes.push(bloco.join('\n'));
+  });
+
+  var total = dividaTotal(enc.codigo), cred = creditoFamilia(enc.codigo);
+  partes.push('');
+  partes.push(total > 0.004 ? '*TOTAL EM FALTA: ' + fmtMT(total) + '*' : '*Está tudo pago. Obrigado!*');
+  if (cred > 0.004) partes.push('Crédito a favor: ' + fmtMT(cred));
+  return partes.join('\n');
 }
 
 function enviarWhatsApp(enc, texto, numeroRecibo) {
