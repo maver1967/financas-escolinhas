@@ -1,10 +1,15 @@
 // Service worker: guarda a app para abrir sem rede.
 // Ao publicar uma nova versão, mudar CACHE (ex.: fe-v2).
-var CACHE = 'fe-v20';
+var CACHE = 'fe-v21';
 var FILES = ['./', './index.html', './app.js', './style.css', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
+  // 'reload' salta a cache do browser. Sem isto, o GitHub Pages ainda pode dar
+  // a versão velha durante dez minutos (max-age=600) e ela ficava presa aqui
+  // dentro até à publicação seguinte.
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    return c.addAll(FILES.map(function (f) { return new Request(f, { cache: 'reload' }); }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function (e) {
