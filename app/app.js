@@ -3794,5 +3794,13 @@ function viewConfig(v, table) {
 // ── service worker ───────────────────────────────────────────
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(function () {});
+  // Quando a versão nova toma conta da página, recarregar uma vez. Sem isto a
+  // app mostrava a versão velha e só aparecia a nova ao abrir outra vez.
+  var jaRecarregou = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (jaRecarregou) return;
+    jaRecarregou = true;
+    location.reload();
+  });
 }
 document.addEventListener('DOMContentLoaded', start);
