@@ -39,6 +39,8 @@ Sheet.prototype.getLastColumn = function () {
   return m;
 };
 Sheet.prototype.getMaxRows = function () { return 1000; };
+Sheet.prototype.getMaxColumns = function () { return Math.max(26, this.getLastColumn()); };
+Sheet.prototype.insertColumnsAfter = function () { return this; };
 Sheet.prototype.getRange = function (r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); };
 Sheet.prototype.setFrozenRows = function () {};
 Sheet.prototype.deleteRow = function (r) { this.data.splice(r - 1, 1); };

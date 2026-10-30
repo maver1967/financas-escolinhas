@@ -26,6 +26,23 @@ check('7 conti', env.__ss.getSheetByName('Contas').getLastRow() === 8);
 var log2 = ctx.instalar();
 check('reinstallare non duplica', env.__ss.getSheetByName('Escolas').getLastRow() === 6, log2);
 
+// 1b. il foglio di una versione vecchia si allarga da solo alla prima lettura,
+//     senza perdere quello che c'e gia scritto
+var shA = env.__ss.getSheetByName('Alunos');
+shA.data = [['codigo', 'nome_completo', 'escola', 'estado', 'atualizado_em', 'atualizado_por'],
+            ['B009', 'Ficha Antiga', 'B', 'ativo', '2026-01-02 08:00:00', 'versao velha']];
+ctx._cache = {};
+var velha = ctx.readTable_('Alunos');
+check('le colonne nuove entrano da sole', ['nivel', 'alergias', 'vive_com', 'medicacao'].every(function (c) {
+  return shA.data[0].indexOf(c) >= 0; }), shA.data[0]);
+check('la riga vecchia si legge ancora', velha.rows.length === 1 && velha.rows[0].nome_completo === 'Ficha Antiga' &&
+  velha.rows[0].nivel === '', velha.rows[0]);
+ctx.instalar();
+check('instalar() non le aggiunge due volte', shA.data[0].filter(function (c) { return c === 'nivel'; }).length === 1, shA.data[0]);
+// il foglio torna vuoto: la riga finta non deve contare per i codici degli alunni
+shA.data = [shA.data[0]];
+ctx._cache = {};
+
 // 2. login
 ctx.CONFIG.GOOGLE_CLIENT_ID = 'CID';
 env.__tokenInfo.tokA = { aud: 'CID', email: 'admin@escola.org', email_verified: 'true' };
@@ -65,6 +82,24 @@ check('cambio scuola mantiene codice', mv.record && mv.record.codigo === 'B002' 
 var a4 = save('Alunos', { nome_completo: 'Pedro Novo', escola: 'B' }, true);
 check('numerazione B continua B003', a4.record && a4.record.codigo === 'B003', a4);
 
+// 4b. la ficha di cadastro cartacea, campo per campo
+var ficha = save('Alunos', { nome_completo: 'Zita Come', escola: 'B', sexo: 'F', nivel: 'II',
+  lugar_nascimento: 'Maxixe', provincia_nascimento: 'Inhambane', documento: '110100234567B',
+  assento: '482 de 2022', vive_com: 'Só mãe', vacinas: 'Actualizado', parto: 'Cesária',
+  alergias: 'Pele, Alimentar, pó de giz', intolerancias: 'Lactose', doencas: 'Malária',
+  dificuldades: 'Falar', alergia_medicamento: 'Penicilina', convulsoes: 'Não',
+  medicacao: 'Salbutamol', medicacao_porque: 'Asma', problema_coracao: '', protese: '',
+  atraso_desenvolvimento: '', problema_crescimento: '', acompanhamento: 'Terapia da fala' }, true, true);
+check('ficha completa salvata', ficha.ok, ficha);
+var fichaLetta = post({ action: 'bootstrap', token: T }).data.Alunos.filter(function (x) { return x.codigo === ficha.record.codigo; })[0];
+check('i campi della ficha tornano interi', fichaLetta.nivel === 'II' && fichaLetta.documento === '110100234567B' &&
+  fichaLetta.alergias === 'Pele, Alimentar, pó de giz' && fichaLetta.medicacao_porque === 'Asma' &&
+  fichaLetta.vive_com === 'Só mãe' && fichaLetta.acompanhamento === 'Terapia da fala', fichaLetta);
+check('nivel fuori lista rifiutato', save('Alunos', { nome_completo: 'N', escola: 'B', nivel: 'IV' }, true, true).code === 'validacao');
+check('vive_com fuori lista rifiutato', save('Alunos', { nome_completo: 'N', escola: 'B', vive_com: 'Tios' }, true, true).code === 'validacao');
+check('vacinas fuori lista rifiutato', save('Alunos', { nome_completo: 'N', escola: 'B', vacinas: 'talvez' }, true, true).code === 'validacao');
+check('ficha a meta accettata', save('Alunos', { nome_completo: 'Meia Ficha', escola: 'B', nivel: 'I' }, true, true).ok);
+
 // 5. encarregados
 var e1 = save('Encarregados', { nome_completo: 'Maria Cossa', telefone_1: '+258 84 123 4567' }, true);
 check('encarregado E0001 e telefono normalizzato', e1.record && e1.record.codigo === 'E0001' && e1.record.telefone_1 === '841234567', e1);
@@ -72,6 +107,21 @@ var e2 = save('Encarregados', { nome_completo: 'Outra', telefone_1: '841234567' 
 check('telefono doppione chiede conferma', e2.code === 'confirmar' && e2.extra.codigo === 'E0001', e2);
 var e3 = save('Encarregados', { nome_completo: 'Sem tel', telefone_1: '12' }, true);
 check('telefono non valido', e3.code === 'validacao', e3);
+
+// 5b. la seconda meta della ficha: il responsabile
+var eF = save('Encarregados', { nome_completo: 'Rosa Nhaca', telefone_1: '842223334',
+  telefone_comercial: '29320100', data_nascimento: '1992-05-18', bi: '110100998877F',
+  bi_emissao: '2021-04-02', estado_civil: 'Casado(a)', religiao: 'Católica',
+  profissao: 'Costureira', empresa: 'Conta própria', endereco_comercial: 'Mercado central, banca 14',
+  provincia: 'Inhambane', cidade: 'Maxixe', bairro: 'Barrane', correspondencia: 'Residencial',
+  plano_pagamento: 'Inscrição + 9 prestações' }, true, true);
+check('encarregado completo salvato', eF.ok && eF.record.bi === '110100998877F' &&
+  eF.record.plano_pagamento === 'Inscrição + 9 prestações', eF);
+check('fisso normalizzato', eF.record && eF.record.telefone_comercial === '29320100', eF.record);
+check('piano fuori lista rifiutato', save('Encarregados', { nome_completo: 'X', telefone_1: '849998887',
+  plano_pagamento: 'quando puder' }, true, true).code === 'validacao');
+check('contatto commerciale non valido', save('Encarregados', { nome_completo: 'X', telefone_1: '849998887',
+  telefone_comercial: '12' }, true, true).code === 'validacao');
 
 // 6. collegamenti
 var l1 = save('AlunoEncarregado', { aluno: 'B001', encarregado: 'E0001', parentesco: 'Mãe', responsavel_financeiro: 'sim', contacto_principal: 'sim' }, true);

@@ -44,6 +44,18 @@ var ANO = hoje.getFullYear();          // o ano corrente, para haver mensalidade
   alunos.push((await save('Alunos', { nome_completo: 'Sónia Novo', escola: 'B', sexo: 'F',
     data_entrada: ANO + '-07-01' }, true, true)).record);
 
+  // duas fichas de cadastro preenchidas até ao fim, para se ver o aviso de saúde
+  await save('Alunos', Object.assign({}, alunos[0], { nivel: 'II', data_nascimento: (ANO - 4) + '-03-12',
+    lugar_nascimento: 'Maxixe', provincia_nascimento: 'Inhambane', documento: '110100234567B',
+    assento: '482 de 2022', vive_com: 'Os pais', vacinas: 'Actualizado', parto: 'Normal',
+    alergias: 'Pele, Alimentar, pó de giz', intolerancias: 'Lactose',
+    alergia_medicamento: 'Penicilina', convulsoes: 'Não', bairro: 'Barrane' }), false);
+  await save('Alunos', Object.assign({}, alunos[4], { nivel: 'III', data_nascimento: (ANO - 5) + '-09-30',
+    lugar_nascimento: 'Inhambane', provincia_nascimento: 'Inhambane', vive_com: 'Só mãe',
+    vacinas: 'Atrasado', parto: 'Cesária', doencas: 'Malária, Pneumonia',
+    dificuldades: 'Falar', medicacao: 'Salbutamol', medicacao_porque: 'Asma',
+    acompanhamento: 'Terapia da fala no centro de saúde, desde Março' }), false);
+
   // ── encarregados ───────────────────────────────────────────
   var pais = [['Maria Cossa', '841234567'], ['Carlos Mabunda', '842223334'], ['Rosa Tembe', '843334445'],
     ['Nelson Bila', '844445556'], ['Judite Sitoe', '845556667'], ['Alberto Come', '846667778'],
@@ -52,6 +64,13 @@ var ANO = hoje.getFullYear();          // o ano corrente, para haver mensalidade
   for (var p of pais) {
     E.push((await save('Encarregados', { nome_completo: p[0], telefone_1: p[1], tem_whatsapp: 'sim' }, true, true)).record);
   }
+  // uma ficha de encarregado completa, como vem do papel
+  await save('Encarregados', Object.assign({}, E[0], { telefone_comercial: '29320100',
+    data_nascimento: '1992-05-18', bi: '110100998877F', bi_emissao: '2021-04-02',
+    estado_civil: 'Casado(a)', religiao: 'Católica', profissao: 'Costureira',
+    empresa: 'Conta própria', endereco_comercial: 'Mercado central, banca 14',
+    provincia: 'Inhambane', cidade: 'Maxixe', bairro: 'Barrane', correspondencia: 'Residencial',
+    plano_pagamento: 'Inscrição + 9 prestações' }), false);
   // Maria tem três educandos: serve para ver a repartição entre irmãos
   for (var i of [0, 2, 3]) {
     await save('AlunoEncarregado', { aluno: alunos[i].codigo, encarregado: E[0].codigo, parentesco: 'Mãe',

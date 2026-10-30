@@ -30,6 +30,16 @@ var SIM = 'sim', NAO = 'não';
 var AUDIT_COLS = ['atualizado_em', 'atualizado_por'];
 var ESTADOS_ALUNO = ['ativo', 'transferido', 'desistente', 'concluiu'];
 
+// Listas fechadas da ficha de cadastro em papel. Vazio é sempre aceite:
+// uma ficha entregue sem tudo preenchido entra, completa-se depois.
+var NIVEIS = ['I', 'II', 'III'];
+var VIVE_COM = ['Os pais', 'Só mãe', 'Só pai', 'Outro'];
+var VACINAS = ['Actualizado', 'Atrasado', 'Sem informação'];
+var PARTOS = ['Normal', 'Cesária', 'Fórceps', 'Prematuro'];
+var SIM_NAO = ['Sim', 'Não'];
+var CORRESPONDENCIA = ['Residencial', 'Comercial'];
+var PLANOS = ['Inscrição + 3 prestações', 'Inscrição + 9 prestações', 'Mensal'];
+
 // perm: 'admin' = só administrador escreve; 'operador' = todos;
 //       'system' = só o próprio sistema (fases seguintes).
 // adminRead: só o administrador lê.
@@ -55,10 +65,18 @@ var SCHEMA = {
 
   Alunos: { key: 'codigo', perm: 'operador', audit: true,
     cols: ['codigo', 'nome_completo', 'data_nascimento', 'sexo', 'escola', 'sala',
-           'data_entrada', 'data_saida', 'estado', 'endereco', 'bairro', 'observacoes'] },
+           'data_entrada', 'data_saida', 'estado', 'endereco', 'bairro', 'observacoes',
+           'nivel', 'lugar_nascimento', 'provincia_nascimento', 'documento', 'assento',
+           'vive_com', 'vacinas', 'parto', 'atraso_desenvolvimento', 'problema_crescimento',
+           'dificuldades', 'alergias', 'doencas', 'intolerancias', 'alergia_medicamento',
+           'convulsoes', 'protese', 'medicacao', 'medicacao_porque', 'problema_coracao',
+           'acompanhamento'] },
   Encarregados: { key: 'codigo', perm: 'operador', audit: true,
     cols: ['codigo', 'nome_completo', 'telefone_1', 'telefone_2', 'tem_whatsapp',
-           'endereco', 'bairro', 'profissao', 'observacoes'] },
+           'endereco', 'bairro', 'profissao', 'observacoes',
+           'telefone_comercial', 'data_nascimento', 'bi', 'bi_emissao', 'estado_civil',
+           'religiao', 'empresa', 'endereco_comercial', 'provincia', 'cidade',
+           'correspondencia', 'plano_pagamento'] },
   AlunoEncarregado: { key: 'id', prefix: 'AE', perm: 'operador', audit: true,
     cols: ['id', 'aluno', 'encarregado', 'parentesco', 'responsavel_financeiro', 'contacto_principal'] },
   Descontos: { key: 'id', prefix: 'DS', perm: 'admin', audit: true,
@@ -156,6 +174,19 @@ function header_(sh) {
   if (lc < 1) return [];
   return sh.getRange(1, 1, 1, lc).getValues()[0].map(function (h) { return String(h).trim(); });
 }
+// Uma versão nova do programa pode trazer colunas novas. Acrescentam-se à folha
+// na primeira leitura: sem isto, o que se escrevesse nelas perdia-se em silêncio.
+function alargar_(sh, head, cols) {
+  var faltam = cols.filter(function (c) { return c && head.indexOf(c) < 0; });
+  if (!faltam.length) return head;
+  var preciso = head.length + faltam.length;
+  if (sh.getMaxColumns() < preciso) sh.insertColumnsAfter(sh.getMaxColumns(), preciso - sh.getMaxColumns());
+  var r = sh.getRange(1, head.length + 1, 1, faltam.length);
+  r.setValues([faltam]);
+  r.setFontWeight('bold');
+  return head.concat(faltam);
+}
+
 function cell_(v) {
   if (v instanceof Date) {
     var hasTime = v.getHours() || v.getMinutes() || v.getSeconds();
@@ -168,7 +199,7 @@ function cell_(v) {
 function readTable_(name) {
   if (_cache[name]) return _cache[name];
   var sh = sheet_(name);
-  var head = header_(sh);
+  var head = alargar_(sh, header_(sh), colsOf_(name));
   var last = sh.getLastRow();
   var rows = [];
   if (last >= 2 && head.length) {
@@ -301,14 +332,13 @@ function setup_(adminEmail, adminNome) {
     var sh = ss.getSheetByName(name);
     if (!sh) {
       sh = ss.insertSheet(name);
-      sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+      alargar_(sh, [], cols);
       log.push('Criada a folha ' + name);
     } else {
       var head = header_(sh);
-      var missing = cols.filter(function (c) { return head.indexOf(c) < 0; });
-      if (missing.length) {
-        sh.getRange(1, head.length + 1, 1, missing.length).setValues([missing]);
-        log.push('Folha ' + name + ': colunas acrescentadas ' + missing.join(', '));
+      var depois = alargar_(sh, head, cols);
+      if (depois.length > head.length) {
+        log.push('Folha ' + name + ': colunas acrescentadas ' + depois.slice(head.length).join(', '));
       }
     }
     formatSheet_(sh);
@@ -727,6 +757,11 @@ function validate_(table, o, existing, user, force) {
       if (!escolaValida_(o.escola)) throw fail_('validacao', 'Escola inexistente.');
       if (ESTADOS_ALUNO.indexOf(o.estado) < 0) throw fail_('validacao', 'Estado inválido.');
       if (o.sexo && ['F', 'M'].indexOf(o.sexo) < 0) throw fail_('validacao', 'Sexo: F ou M.');
+      opcao_(o.nivel, NIVEIS, 'Nível');
+      opcao_(o.vive_com, VIVE_COM, 'Vive com');
+      opcao_(o.vacinas, VACINAS, 'Calendário de vacinação');
+      opcao_(o.parto, PARTOS, 'Parto');
+      opcao_(o.convulsoes, SIM_NAO, 'Desmaio ou convulsão');
       if (existing && existing.escola !== o.escola && !force) {
         throw fail_('confirmar', 'Vai mudar a escola de ' + existing.escola + ' para ' + o.escola + '. O código ' + existing.codigo + ' mantém-se.');
       }
@@ -743,6 +778,10 @@ function validate_(table, o, existing, user, force) {
       o.telefone_2 = phone9_(o.telefone_2);
       if (!/^(8\d{8}|2\d{7})$/.test(o.telefone_1)) throw fail_('validacao', 'Telefone 1 inválido (celular: 9 dígitos começando por 8).');
       if (o.telefone_2 && !/^(8\d{8}|2\d{7})$/.test(o.telefone_2)) throw fail_('validacao', 'Telefone 2 inválido.');
+      o.telefone_comercial = phone9_(o.telefone_comercial);
+      if (o.telefone_comercial && !/^(8\d{8}|2\d{7})$/.test(o.telefone_comercial)) throw fail_('validacao', 'Contacto comercial inválido.');
+      opcao_(o.correspondencia, CORRESPONDENCIA, 'Correspondência');
+      opcao_(o.plano_pagamento, PLANOS, 'Opção de pagamento');
       if (!force) {
         var phones = [o.telefone_1, o.telefone_2].filter(Boolean);
         var other = readTable_('Encarregados').rows.filter(function (r) {
@@ -780,6 +819,12 @@ function validate_(table, o, existing, user, force) {
       if (!o.autorizado_por) o.autorizado_por = user.nome || user.email;
       break;
   }
+}
+
+// Campo de lista fechada. Vazio passa: a ficha pode chegar incompleta.
+function opcao_(valor, lista, campo) {
+  var v = trim_(valor);
+  if (v && lista.indexOf(v) < 0) throw fail_('validacao', campo + ': use ' + lista.join(', ') + '.');
 }
 
 // Outras linhas alteradas como consequência (a app actualiza-as)
