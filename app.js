@@ -21,6 +21,15 @@ var MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho'
              'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 var ESTADOS = [['ativo', 'Activo'], ['transferido', 'Transferido'], ['desistente', 'Desistente'], ['concluiu', 'Concluiu']];
 var PARENTESCOS = ['Mãe', 'Pai', 'Avó', 'Avô', 'Tia', 'Tio', 'Irmã', 'Irmão', 'Madrasta', 'Padrasto', 'Tutor', 'Outro'];
+var PROVINCIAS = ['Inhambane', 'Maputo Cidade', 'Maputo', 'Gaza', 'Sofala', 'Manica', 'Tete',
+  'Zambézia', 'Nampula', 'Cabo Delgado', 'Niassa'];
+// As mesmas listas fechadas que o servidor valida (Code.gs).
+var VIVE_COM = ['Os pais', 'Só mãe', 'Só pai', 'Outro'];
+var VACINAS = ['Actualizado', 'Atrasado', 'Sem informação'];
+var PARTOS = ['Normal', 'Cesária', 'Fórceps', 'Prematuro'];
+var CORRESPONDENCIA = ['Residencial', 'Comercial'];
+var PLANOS = ['Inscrição + 3 prestações', 'Inscrição + 9 prestações', 'Mensal'];
+var ESTADOS_CIVIS = ['Solteiro(a)', 'Casado(a)', 'União de facto', 'Divorciado(a)', 'Viúvo(a)'];
 var METODOS = [['numerario', 'Numerário'], ['emola', 'e-Mola'], ['mpesa', 'M-Pesa'], ['banco', 'Banco']];
 var METODO_NOME = { numerario: 'Numerário', emola: 'e-Mola', mpesa: 'M-Pesa', banco: 'Banco' };
 var PRECISA_REF = ['emola', 'mpesa', 'banco'];
@@ -637,10 +646,43 @@ function buildForm(fields, rec, opts) {
   var grid = h('div', { class: 'grid' });
   fields.forEach(function (f) {
     var val = rec && rec[f.n] !== undefined && rec[f.n] !== null ? String(rec[f.n]) : (f.def !== undefined ? String(f.def) : '');
+    // Título de secção: parte a ficha em blocos, como a ficha de papel.
+    if (f.t === 'sec') {
+      grid.appendChild(h('div', { class: 'field full form-sec' }, h('h3', null, f.l),
+        f.help ? h('small', { class: 'muted' }, f.help) : null));
+      return;
+    }
     var id = 'f_' + f.n + '_' + Math.random().toString(36).slice(2, 7);
     var input;
     var ro = f.ro === true || (f.ro === 'edit' && opts.editing);
-    if (f.t === 'select' || f.t === 'simnao') {
+    if (f.t === 'checks') {
+      // Quadradinhos para marcar, como no papel. Guarda-se tudo numa só célula,
+      // separado por vírgulas; o que não está na lista fica na caixa "Outro".
+      input = h('div', { class: 'checks', id: id });
+      var caixas = (f.o || []).map(function (o) {
+        var b = h('input', { type: 'checkbox', value: o });
+        input.appendChild(h('label', { class: 'chk' }, b, o));
+        return b;
+      });
+      var outro = f.outro ? h('input', { type: 'text', placeholder: 'Outro…', maxlength: 60 }) : null;
+      if (outro) input.appendChild(h('label', { class: 'chk livre' }, outro));
+      Object.defineProperty(input, 'value', {
+        get: function () {
+          var l = caixas.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+          if (outro && outro.value.trim()) l.push(outro.value.trim());
+          return l.join(', ');
+        },
+        set: function (v) {
+          var resto = [];
+          String(v || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (x) {
+            var b = caixas.filter(function (y) { return norm(y.value) === norm(x); })[0];
+            if (b) b.checked = true; else resto.push(x);
+          });
+          if (outro) outro.value = resto.join(', ');
+        }
+      });
+      input.value = val;
+    } else if (f.t === 'select' || f.t === 'simnao') {
       input = h('select', { id: id, disabled: ro });
       if (!f.req && f.t !== 'simnao') input.appendChild(h('option', { value: '' }, '—'));
       optsFor(f.t === 'simnao' ? { o: OPT.simnao } : f).forEach(function (o) {
@@ -670,6 +712,7 @@ function buildForm(fields, rec, opts) {
     get: function () {
       var o = {};
       fields.forEach(function (f) {
+        if (!f.n) return;
         var v = inputs[f.n].value;
         if (f.upper) v = v.toUpperCase();
         o[f.n] = typeof v === 'string' ? v.trim() : v;
@@ -679,7 +722,7 @@ function buildForm(fields, rec, opts) {
     check: function () {
       for (var i = 0; i < fields.length; i++) {
         var f = fields[i];
-        if (f.req && !String(inputs[f.n].value).trim()) {
+        if (f.n && f.req && !String(inputs[f.n].value).trim()) {
           inputs[f.n].focus();
           toast('Preencha: ' + f.l, 'erro');
           return false;
@@ -704,19 +747,71 @@ function busy(b, p) {
 }
 
 // ── Alunos ───────────────────────────────────────────────────
+// Os campos seguem a ficha de cadastro em papel, pela mesma ordem, para quem
+// passa a ficha para a app ir de cima a baixo sem procurar.
 var F_ALUNO = [
   { n: 'nome_completo', l: 'Nome completo', req: true, full: true },
   { n: 'escola', l: 'Escola', t: 'select', o: function () { return OPT.escolas(); }, req: true },
+  { n: 'nivel', l: 'Nível', t: 'select', o: [['I', 'Nível I'], ['II', 'Nível II'], ['III', 'Nível III']] },
   { n: 'sala', l: 'Sala / turma' },
+  { n: 'estado', l: 'Estado', t: 'select', o: ESTADOS, req: true, def: 'ativo' },
+  { n: 'data_entrada', l: 'Data de inscrição', t: 'date' },
+  { n: 'data_saida', l: 'Data de saída', t: 'date' },
+
+  { t: 'sec', l: 'Nascimento e documentos' },
   { n: 'data_nascimento', l: 'Data de nascimento', t: 'date' },
   { n: 'sexo', l: 'Sexo', t: 'select', o: [['F', 'Feminino'], ['M', 'Masculino']] },
-  { n: 'estado', l: 'Estado', t: 'select', o: ESTADOS, req: true, def: 'ativo' },
-  { n: 'data_entrada', l: 'Data de entrada', t: 'date' },
-  { n: 'data_saida', l: 'Data de saída', t: 'date' },
+  { n: 'lugar_nascimento', l: 'Lugar de nascimento' },
+  { n: 'provincia_nascimento', l: 'Província de nascimento', list: PROVINCIAS },
+  { n: 'documento', l: 'Documento nº', help: 'Bilhete de identidade ou cédula.' },
+  { n: 'assento', l: 'Assento nº' },
+
+  { t: 'sec', l: 'Família e morada' },
+  { n: 'vive_com', l: 'O aluno vive com', t: 'select', o: VIVE_COM.map(function (x) { return [x, x]; }) },
   { n: 'bairro', l: 'Bairro' },
   { n: 'endereco', l: 'Endereço', full: true },
-  { n: 'observacoes', l: 'Observações', t: 'textarea', full: true }
+
+  { t: 'sec', l: 'Saúde e desenvolvimento',
+    help: 'O que ficar vazio conta como nada a declarar. O que aqui se escreve aparece em destaque no topo da ficha.' },
+  { n: 'vacinas', l: 'Calendário de vacinação', t: 'select', o: VACINAS.map(function (x) { return [x, x]; }) },
+  { n: 'parto', l: 'O parto foi', t: 'select', o: PARTOS.map(function (x) { return [x, x]; }) },
+  { n: 'dificuldades', l: 'Dificuldade de', t: 'checks', full: true, outro: true,
+    o: ['Enxergar', 'Falar', 'Ouvir', 'Andar', 'Movimentar braços e pernas'] },
+  { n: 'alergias', l: 'Alergias', t: 'checks', full: true, outro: true,
+    o: ['Pele', 'Alimentar', 'Bronquite', 'Rinite'] },
+  { n: 'doencas', l: 'Doenças que já teve', t: 'checks', full: true, outro: true,
+    o: ['Malária', 'Hepatite', 'Sarampo', 'Pneumonia'] },
+  { n: 'intolerancias', l: 'Intolerância a', t: 'checks', full: true, o: ['Glúten', 'Lactose'] },
+  { n: 'alergia_medicamento', l: 'Alergia a medicamentos', help: 'Quais.' },
+  { n: 'convulsoes', l: 'Teve desmaio ou convulsão', t: 'select', o: [['Não', 'Não'], ['Sim', 'Sim']] },
+  { n: 'medicacao', l: 'Medicação que toma' },
+  { n: 'medicacao_porque', l: 'Para quê' },
+  { n: 'problema_coracao', l: 'Problema no coração', help: 'Qual.' },
+  { n: 'protese', l: 'Usa prótese', help: 'Qual.' },
+  { n: 'atraso_desenvolvimento', l: 'Atraso no desenvolvimento', help: 'Qual.' },
+  { n: 'problema_crescimento', l: 'Problema no crescimento', help: 'Qual.' },
+  { n: 'acompanhamento', l: 'Acompanhamento de especialista', full: true,
+    help: 'Que especialista, por causa de quê, e desde quando.' },
+
+  { t: 'sec', l: 'Observações' },
+  { n: 'observacoes', l: 'Observações gerais', t: 'textarea', full: true }
 ];
+
+// O que uma educadora precisa de saber antes de cuidar da criança.
+function avisoSaude(a) {
+  var pontos = [];
+  if (a.alergia_medicamento) pontos.push('Alergia a medicamentos: ' + a.alergia_medicamento);
+  if (a.alergias) pontos.push('Alergias: ' + a.alergias);
+  if (a.intolerancias) pontos.push('Intolerância a ' + a.intolerancias);
+  if (a.medicacao) pontos.push('Toma ' + a.medicacao + (a.medicacao_porque ? ' — ' + a.medicacao_porque : ''));
+  if (String(a.convulsoes) === 'Sim') pontos.push('Já teve desmaio ou convulsão');
+  if (a.problema_coracao) pontos.push('Coração: ' + a.problema_coracao);
+  if (a.dificuldades) pontos.push('Dificuldade de ' + a.dificuldades.toLowerCase());
+  if (a.protese) pontos.push('Prótese: ' + a.protese);
+  if (!pontos.length) return null;
+  return h('div', { class: 'aviso-saude' }, h('strong', null, 'Saúde'),
+    h('ul', null, pontos.map(function (t) { return h('li', null, t); })));
+}
 
 function viewAlunos(v) {
   v.appendChild(pageHead('Alunos', S.escola === 'TODAS' ? 'Todas as escolas' : escolaNome(S.escola),
@@ -776,6 +871,8 @@ function viewAluno(v, cod) {
   v.appendChild(pageHead(isNew ? 'Novo aluno' : a.nome_completo,
     isNew ? 'O código é atribuído automaticamente pela escola.' : null,
     isNew ? null : h('span', { class: 'code big-code' }, a.codigo)));
+
+  if (!isNew) { var av = avisoSaude(a); if (av) v.appendChild(av); }
 
   var defs = isNew ? { escola: S.escola !== 'TODAS' ? S.escola : '', estado: 'ativo', data_entrada: hoje() } : a;
   var f = buildForm(F_ALUNO, defs, { editing: !isNew });
@@ -872,7 +969,7 @@ function linkPicker(a) {
 
   var abrir = btn('+ Novo encarregado', function () {
     clear(novo);
-    var f = buildForm(F_ENCARREGADO, { tem_whatsapp: SIM });
+    var f = buildForm(F_ENC_RAPIDO, { tem_whatsapp: SIM });
     var s = btn('Criar e ligar', function () {
       if (!f.check()) return;
       busy(s, gravar('Encarregados', f.get(), true).then(function (e) { return ligar(e.codigo); })).catch(function (err) {
@@ -880,6 +977,7 @@ function linkPicker(a) {
       });
     }, 'primary');
     novo.appendChild(h('div', { class: 'sub-panel' }, h('h3', null, 'Novo encarregado'), f.el,
+      h('p', { class: 'muted' }, 'Basta isto para já. O resto da ficha — BI, profissão, morada — completa-se depois na página dele.'),
       h('div', { class: 'form-actions' }, btn('Cancelar', function () { clear(novo); }, 'ghost'), s)));
   }, 'ghost');
 
@@ -943,16 +1041,48 @@ function panelDescontos(a) {
 }
 
 // ── Encarregados ─────────────────────────────────────────────
-var F_ENCARREGADO = [
+// Pai, mãe e encarregado financeiro da ficha de papel são três encarregados
+// aqui, cada um ligado ao aluno com o seu parentesco.
+
+// Os quatro campos sem os quais não se pode cobrar nem avisar ninguém.
+// É este o formulário de quem está a inscrever um aluno e tem a fila à espera.
+var F_ENC_RAPIDO = [
   { n: 'nome_completo', l: 'Nome completo', req: true, full: true },
   { n: 'telefone_1', l: 'Telefone 1', t: 'tel', req: true, ph: '84 123 4567' },
   { n: 'telefone_2', l: 'Telefone 2', t: 'tel' },
-  { n: 'tem_whatsapp', l: 'Tem WhatsApp no telefone 1?', t: 'simnao' },
+  { n: 'tem_whatsapp', l: 'Tem WhatsApp no telefone 1?', t: 'simnao' }
+];
+
+var F_ENCARREGADO = F_ENC_RAPIDO.concat([
+  { n: 'telefone_comercial', l: 'Contacto comercial', t: 'tel' },
+
+  { t: 'sec', l: 'Identificação' },
+  { n: 'data_nascimento', l: 'Data de nascimento', t: 'date' },
+  { n: 'bi', l: 'Bilhete de identidade nº' },
+  { n: 'bi_emissao', l: 'Emissão do BI', t: 'date' },
+  { n: 'estado_civil', l: 'Estado civil', list: ESTADOS_CIVIS },
+  { n: 'religiao', l: 'Religião' },
+
+  { t: 'sec', l: 'Trabalho' },
   { n: 'profissao', l: 'Profissão' },
+  { n: 'empresa', l: 'Empresa' },
+  { n: 'endereco_comercial', l: 'Endereço comercial', full: true },
+
+  { t: 'sec', l: 'Morada' },
+  { n: 'provincia', l: 'Província', list: PROVINCIAS, def: 'Inhambane' },
+  { n: 'cidade', l: 'Cidade', def: 'Maxixe' },
   { n: 'bairro', l: 'Bairro' },
   { n: 'endereco', l: 'Endereço', full: true },
-  { n: 'observacoes', l: 'Observações', t: 'textarea', full: true }
-];
+  { n: 'correspondencia', l: 'Correspondência para', t: 'select',
+    o: CORRESPONDENCIA.map(function (x) { return [x, x]; }) },
+
+  { t: 'sec', l: 'Pagamento' },
+  { n: 'plano_pagamento', l: 'Opção escolhida', t: 'select', o: PLANOS.map(function (x) { return [x, x]; }),
+    full: true, help: 'Fica registado o que a família escolheu. As cobranças continuam a seguir a tabela de preços e o dia de vencimento do ano lectivo.' },
+
+  { t: 'sec', l: 'Observações' },
+  { n: 'observacoes', l: 'Observações gerais', t: 'textarea', full: true }
+]);
 
 function viewEncarregados(v) {
   v.appendChild(pageHead('Encarregados', S.escola === 'TODAS' ? 'Todas as escolas' : 'Com educandos em ' + escolaNome(S.escola),

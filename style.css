@@ -181,6 +181,21 @@ main { margin-left: var(--nav-w); padding: 24px 28px 64px; max-width: 1200px; }
 .field .req { color: var(--err); }
 .field input[readonly], .field select:disabled { background: var(--bg); color: var(--muted); }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+/* título de secção dentro de um formulário comprido */
+.field.form-sec { gap: 2px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.field.form-sec h3 { margin: 0; font-size: .95rem; }
+.form .grid > .field.form-sec:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* quadradinhos para marcar, como na ficha de papel */
+.checks { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.checks .chk.livre { flex: 1; min-width: 150px; }
+.checks .chk.livre input { width: 100%; height: auto; }
+
+/* o que uma educadora tem de saber antes de cuidar da criança */
+.aviso-saude { border: 1px solid var(--warn); background: var(--warn-bg); color: var(--warn); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
+.aviso-saude ul { margin: 6px 0 0; padding-left: 20px; }
+.aviso-saude li { font-size: .92rem; }
 .btn {
   font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 16px; min-height: 42px; cursor: pointer;
   border: 1px solid var(--line); background: var(--panel); color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
