@@ -196,6 +196,28 @@ check('operador nao apaga', apagar('Categorias', 'DES_ALIM', TO).code === 'permi
 check('tabela de movimentos nao se apaga', apagar('Despesas', 'DP00001').code === 'validacao');
 check('tabela inventada nao se apaga', apagar('NaoExiste', 'x').code === 'validacao');
 
+// 8c. apagare un alunno iscritto per sbaglio
+function apagarAl(cod, tok) { return post({ action: 'apagarAluno', token: tok || T, codigo: cod }); }
+
+var errado = save('Alunos', { nome_completo: 'Entrou Por Engano', escola: 'N' }, true, true).record;
+save('AlunoEncarregado', { aluno: errado.codigo, encarregado: 'E0001', parentesco: 'Mãe',
+  responsavel_financeiro: 'sim' }, true);
+save('Descontos', { aluno: errado.codigo, tipo_cobranca: 'MENSALIDADE', modo: 'percentagem',
+  valor: 10, mes_de: 2, mes_ate: 11, motivo: 'engano' }, true);
+check('operador nao apaga alunos', apagarAl(errado.codigo, TO).code === 'permissao');
+var fora = apagarAl(errado.codigo);
+check('o aluno apaga-se', fora.ok === true && fora.nome === 'Entrou Por Engano', fora);
+var depois = post({ action: 'bootstrap', token: T }).data;
+check('sai das listas', !depois.Alunos.some(function (a) { return a.codigo === errado.codigo; }));
+check('leva as ligacoes a familia', !depois.AlunoEncarregado.some(function (l) { return l.aluno === errado.codigo; }));
+check('leva os descontos', !depois.Descontos.some(function (d) { return d.aluno === errado.codigo; }));
+check('leva as cobrancas', !depois.Cobrancas.some(function (c) { return c.aluno === errado.codigo; }));
+check('o encarregado fica', depois.Encarregados.some(function (e) { return e.codigo === 'E0001'; }));
+check('os outros alunos ficam', depois.Alunos.some(function (a) { return a.codigo === 'B001'; }));
+check('apagar outra vez diz que nao existe', apagarAl(errado.codigo).code === 'naoexiste');
+check('fica escrito na auditoria', env.__ss.getSheetByName('Auditoria').data
+  .some(function (r) { return r.indexOf('Entrou Por Engano') >= 0 || String(r[4]) === errado.codigo; }));
+
 // 9. audit e logout
 check('auditoria scritta', env.__ss.getSheetByName('Auditoria').getLastRow() > 15);
 check('logout', post({ action: 'logout', token: TO }).ok && post({ action: 'bootstrap', token: TO }).code === 'sessao');

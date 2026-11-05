@@ -526,6 +526,8 @@ function route_(req) {
       return withLock_(function () { _cache = {}; return removeLink_(user, req.id); });
     case 'apagarConfig':
       return withLock_(function () { _cache = {}; return apagarConfig_(user, req); });
+    case 'apagarAluno':
+      return withLock_(function () { _cache = {}; return apagarAluno_(user, req); });
 
     // fase 2
     case 'gerarCobrancas':
@@ -949,6 +951,62 @@ function apagarConfig_(user, p) {
   _cache = {};
   audit_(user, 'apagar', table, id, linha, null);
   return { ok: true, table: table, id: id };
+}
+
+// Um aluno inscrito por engano. Só se apaga enquanto nenhum dinheiro lhe tocou:
+// a partir daí o que está escrito é história, e a história não se apaga.
+// Vão com ele as cobranças que nasceram da inscrição, as ligações à família e
+// os descontos. Fica tudo guardado na Auditoria.
+function apagarAluno_(user, p) {
+  if (!user || user.papel !== 'admin') {
+    throw fail_('permissao', 'Só o administrador apaga um aluno. Se foi só a escola errada, ' +
+      'mude a escola na ficha: o aluno fica com o mesmo código.');
+  }
+  var cod = trim_(p.codigo);
+  var al = findBy_('Alunos', 'codigo', cod);
+  if (!al) throw fail_('naoexiste', 'Aluno não encontrado.');
+
+  var cobrancas = readTable_('Cobrancas').rows.filter(function (c) { return trim_(c.aluno) === cod; });
+  var minhas = {};
+  cobrancas.forEach(function (c) { minhas[trim_(c.id)] = true; });
+
+  var vivos = {};
+  var recibos = 0;
+  readTable_('Recebimentos').rows.forEach(function (r) {
+    if (r.estado === 'anulado') return;
+    vivos[trim_(r.numero_recibo)] = true;
+    if (trim_(r.aluno) === cod) recibos++;
+  });
+  var alocado = readTable_('Alocacoes').rows.filter(function (a) {
+    return minhas[trim_(a.cobranca)] && vivos[trim_(a.recebimento)];
+  }).length;
+
+  if (recibos || alocado) {
+    throw fail_('validacao', 'Não se apaga ' + al.nome_completo + ': já há dinheiro recebido em seu nome (' +
+      (recibos ? recibos + ' recibo' + (recibos === 1 ? '' : 's') : alocado + ' pagamento' + (alocado === 1 ? '' : 's')) +
+      '). Ponha o estado em Desistente ou Transferido — fica fora das listas e as contas mantêm-se certas.');
+  }
+
+  var removidos = { Cobrancas: [], Descontos: [], AlunoEncarregado: [], Alunos: [cod] };
+  apagarLinhas_(user, 'Cobrancas', cobrancas, removidos.Cobrancas);
+  apagarLinhas_(user, 'Descontos', readTable_('Descontos').rows.filter(function (d) {
+    return trim_(d.aluno) === cod; }), removidos.Descontos);
+  apagarLinhas_(user, 'AlunoEncarregado', readTable_('AlunoEncarregado').rows.filter(function (l) {
+    return trim_(l.aluno) === cod; }), removidos.AlunoEncarregado);
+  sheet_('Alunos').deleteRow(al._row);
+  audit_(user, 'apagar', 'Alunos', cod, al, null);
+  _cache = {};
+  return { ok: true, codigo: cod, nome: al.nome_completo, removidos: removidos };
+}
+
+// De baixo para cima: apagar uma linha faz subir todas as que estão por baixo.
+function apagarLinhas_(user, table, linhas, saida) {
+  var chave = SCHEMA[table].key;
+  linhas.slice().sort(function (a, b) { return b._row - a._row; }).forEach(function (r) {
+    sheet_(table).deleteRow(r._row);
+    audit_(user, 'apagar', table, r[chave], r, null);
+    saida.push(r[chave]);
+  });
 }
 
 function removeLink_(user, id) {

@@ -168,6 +168,11 @@ post({ action: 'receber', token: T, encarregado: enc.codigo, valor: 1000, metodo
   conta: 'CX_COMUM', data: HOJE, alocacoes: [{ cobranca: cob.id, valor: 1000 }] });
 check('o recibo entra na caixa', saldo('CX_COMUM') === antesRec + 1000, saldo('CX_COMUM'));
 
+// ── 8b. un alunno pagato non si cancella piu ────────────────
+var noApaga = post({ action: 'apagarAluno', token: T, codigo: aluno.codigo });
+check('alunno con soldi ricevuti non si cancella', noApaga.code === 'validacao' && /dinheiro recebido/.test(noApaga.error), noApaga);
+check('e resta li dov\'era', tabela('Alunos').filter(function (a) { return a.codigo === aluno.codigo; }).length === 1);
+
 // ── 9. movimentos de uma conta ───────────────────────────────
 var mov = post({ action: 'movimentos', token: T, conta: 'CX_COMUM' }).movimentos;
 check('movimentos por ordem de data', mov.every(function (m, i) { return i === 0 || mov[i - 1].data <= m.data; }));
