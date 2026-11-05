@@ -211,6 +211,62 @@ check('o recibo errado continua la, anulado e com motivo', tabela('Recebimentos'
   return r.numero_recibo === errado.recibo.numero_recibo &&
     r.estado === 'anulado' && r.motivo_anulacao === 'Valor errado'; }).length === 1);
 
+// 6c. cancellare del tutto un alunno di prova, soldi compresi
+// due fratelli di prova, cosi si prova anche il recibo che paga tutti e due
+var pA = save('Alunos', { nome_completo: 'Prova Um', escola: 'B' }, true, true).record;
+var pB = save('Alunos', { nome_completo: 'Prova Dois', escola: 'B' }, true, true).record;
+var pE = save('Encarregados', { nome_completo: 'Mae de Prova', telefone_1: '847770009' }, true, true).record;
+save('AlunoEncarregado', { aluno: pA.codigo, encarregado: pE.codigo, parentesco: 'Mãe',
+  responsavel_financeiro: 'sim', contacto_principal: 'sim' }, true);
+save('AlunoEncarregado', { aluno: pB.codigo, encarregado: pE.codigo, parentesco: 'Mãe' }, true);
+
+var soloMio = cobsDe(pA.codigo).filter(function (c) { return c.estado === 'aberta'; })[0];
+var pagoMio = receber({ encarregado: pE.codigo, valor: 100, metodo: 'numerario', conta: 'CX_COMUM',
+  data: HOJE, aluno: pA.codigo, alocacoes: [{ cobranca: soloMio.id, valor: 100 }] });
+check('alunno di prova con un incasso suo', pagoMio.ok, pagoMio);
+var travado = post({ action: 'apagarAluno', token: T, codigo: pA.codigo });
+check('la strada normale si ferma', travado.code === 'temPagamentos' && travado.extra.recibos >= 1, travado);
+check('e dice quanto porta via', travado.extra.cobrancas > 0, travado.extra);
+check('senza tudo non tocca niente', tabela('Alunos').filter(function (a) { return a.codigo === pA.codigo; }).length === 1);
+
+// un recibo che paga anche un fratello non si porta via
+var doIrmao = cobsDe(pB.codigo).filter(function (c) { return c.estado === 'aberta'; })[0];
+var meuTambem = cobsDe(pA.codigo).filter(function (c) { return c.estado === 'aberta'; })[0];
+var misturado = receber({ encarregado: pE.codigo, valor: 60, metodo: 'numerario', conta: 'CX_COMUM', data: HOJE,
+  alocacoes: [{ cobranca: doIrmao.id, valor: 30 }, { cobranca: meuTambem.id, valor: 30 }] });
+check('recibo que paga os dois irmaos', misturado.ok, misturado);
+var misto = post({ action: 'apagarAluno', token: T, codigo: pA.codigo, tudo: true });
+check('recibo de irmaos trava o apagar', misto.code === 'validacao' && /tamb\u00e9m paga/.test(misto.error || ''), misto);
+check('o aluno fica onde estava', tabela('Alunos').filter(function (a) { return a.codigo === pA.codigo; }).length === 1);
+// anulado, o recibo misto continua a dizer o nome dele: leva-se na mesma
+post({ action: 'anularRecebimento', token: T, numero: misturado.recibo.numero_recibo, motivo: 'ensaio' });
+
+var caixaAntes = tabela('Recebimentos').filter(function (r) { return r.estado !== 'anulado'; })
+  .reduce(function (t, r) { return t + Number(r.valor); }, 0);
+var limpo = post({ action: 'apagarAluno', token: T, codigo: pA.codigo, tudo: true });
+check('com tudo, o aluno de ensaio sai', limpo.ok === true, limpo);
+check('leva os recibos', limpo.removidos.Recebimentos.length >= 1, limpo.removidos);
+check('leva as alocacoes', limpo.removidos.Alocacoes.length >= 1, limpo.removidos);
+check('diz quanto dinheiro saiu', limpo.dinheiro > 0, limpo.dinheiro);
+check('nao sobra nenhuma alocacao orfa', tabela('Alocacoes').every(function (a) {
+  return tabela('Recebimentos').some(function (r) { return r.numero_recibo === a.recebimento; }); }));
+check('a caixa desce exactamente o que saiu',
+  Math.round((caixaAntes - limpo.dinheiro) * 100) === Math.round(tabela('Recebimentos')
+    .filter(function (r) { return r.estado !== 'anulado'; })
+    .reduce(function (t, r) { return t + Number(r.valor); }, 0) * 100),
+  [caixaAntes, limpo.dinheiro]);
+check('nenhuma cobranca sua fica para tras', !tabela('Cobrancas').some(function (c) { return c.aluno === pA.codigo; }));
+check('o irmao fica inteiro', tabela('Alunos').some(function (a) { return a.codigo === pB.codigo; }) &&
+  tabela('Cobrancas').some(function (c) { return c.aluno === pB.codigo; }));
+
+// 6d. e poi l'incaricato, che ora non ha piu niente
+var comFilhos = post({ action: 'apagarEncarregado', token: T, codigo: pE.codigo });
+check('encarregado com educandos nao se apaga', comFilhos.code === 'validacao' && /ligado a/.test(comFilhos.error), comFilhos);
+var soE = save('Encarregados', { nome_completo: 'So Para Ensaio', telefone_1: '847770001' }, true, true).record;
+check('encarregado sem nada apaga-se', post({ action: 'apagarEncarregado', token: T, codigo: soE.codigo }).ok === true);
+check('e desaparece', !tabela('Encarregados').some(function (x) { return x.codigo === soE.codigo; }));
+check('apagar outra vez diz que nao existe', post({ action: 'apagarEncarregado', token: T, codigo: soE.codigo }).code === 'naoexiste');
+
 check('cobrança com pagamento não se anula', post({ action: 'anularCobranca', token: T, id: matB.id, motivo: 'x' }).code === 'validacao');
 var semPag = cobsDe('B001').filter(function (c) { return c.estado === 'aberta'; })[0];
 var ac = post({ action: 'anularCobranca', token: T, id: semPag.id, motivo: 'Cobrada por engano' });

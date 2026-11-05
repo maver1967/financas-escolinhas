@@ -528,6 +528,8 @@ function route_(req) {
       return withLock_(function () { _cache = {}; return apagarConfig_(user, req); });
     case 'apagarAluno':
       return withLock_(function () { _cache = {}; return apagarAluno_(user, req); });
+    case 'apagarEncarregado':
+      return withLock_(function () { _cache = {}; return apagarEncarregado_(user, req); });
 
     // fase 2
     case 'gerarCobrancas':
@@ -981,13 +983,53 @@ function apagarAluno_(user, p) {
     return minhas[trim_(a.cobranca)] && vivos[trim_(a.recebimento)];
   }).length;
 
+  // Quais os recibos que tocaram neste aluno — pelas alocações ou pelo nome.
+  var envolvidos = {};
+  var todasAlocs = readTable_('Alocacoes').rows;
+  todasAlocs.forEach(function (x) { if (minhas[trim_(x.cobranca)]) envolvidos[trim_(x.recebimento)] = true; });
+  readTable_('Recebimentos').rows.forEach(function (r) {
+    if (trim_(r.aluno) === cod) envolvidos[trim_(r.numero_recibo)] = true;
+  });
+
+  var recibosDele = [], alocsDele = [];
   if (recibos || alocado) {
-    throw fail_('validacao', 'Não se apaga ' + al.nome_completo + ': já há dinheiro recebido em seu nome (' +
-      (recibos ? recibos + ' recibo' + (recibos === 1 ? '' : 's') : alocado + ' pagamento' + (alocado === 1 ? '' : 's')) +
-      '). Ponha o estado em Desistente ou Transferido — fica fora das listas e as contas mantêm-se certas.');
+    // O caminho normal pára aqui: um aluno que pagou não se apaga, esconde-se.
+    // Só quem escrever de novo o código do aluno leva os recibos atrás — é a
+    // saída para o que se inscreveu a brincar, a experimentar a app.
+    if (!p.tudo) {
+      var pare = fail_('temPagamentos', 'Já há dinheiro recebido em nome de ' + al.nome_completo + ' (' +
+        (recibos ? recibos + ' recibo' + (recibos === 1 ? '' : 's') : alocado + ' pagamento' + (alocado === 1 ? '' : 's')) + ').');
+      pare.extra = { codigo: cod, nome: al.nome_completo, recibos: Object.keys(envolvidos).length,
+        cobrancas: cobrancas.length };
+      throw pare;
+    }
+    // Um recibo vivo que pagou irmãos não é só deste aluno e não se leva.
+    // Anulado já não conta em lado nenhum — esse vai, senão dois irmãos que
+    // partilhassem um recibo ficavam presos um ao outro para sempre.
+    var anulados = {};
+    readTable_('Recebimentos').rows.forEach(function (r) {
+      if (r.estado === 'anulado') anulados[trim_(r.numero_recibo)] = true;
+    });
+    Object.keys(envolvidos).forEach(function (num) {
+      if (anulados[num]) return;
+      var fora = todasAlocs.filter(function (x) {
+        return trim_(x.recebimento) === num && !minhas[trim_(x.cobranca)];
+      })[0];
+      if (!fora) return;
+      var outra = findBy_('Cobrancas', 'id', trim_(fora.cobranca));
+      var irmao = outra ? findBy_('Alunos', 'codigo', trim_(outra.aluno)) : null;
+      throw fail_('validacao', 'O recibo ' + num + ' também paga ' +
+        (irmao ? irmao.nome_completo : 'outro aluno') + '. Anule esse recibo à mão, ou apague primeiro o outro aluno.');
+    });
+    recibosDele = readTable_('Recebimentos').rows.filter(function (r) { return envolvidos[trim_(r.numero_recibo)]; });
+    alocsDele = todasAlocs.filter(function (x) { return envolvidos[trim_(x.recebimento)]; });
   }
 
-  var removidos = { Cobrancas: [], Descontos: [], AlunoEncarregado: [], Alunos: [cod] };
+  var removidos = { Alocacoes: [], Recebimentos: [], Cobrancas: [], Descontos: [], AlunoEncarregado: [], Alunos: [cod] };
+  // Primeiro as alocações, depois os recibos: ao contrário ficava dinheiro
+  // alocado a apontar para um recibo que já não existe.
+  apagarLinhas_(user, 'Alocacoes', alocsDele, removidos.Alocacoes);
+  apagarLinhas_(user, 'Recebimentos', recibosDele, removidos.Recebimentos);
   apagarLinhas_(user, 'Cobrancas', cobrancas, removidos.Cobrancas);
   apagarLinhas_(user, 'Descontos', readTable_('Descontos').rows.filter(function (d) {
     return trim_(d.aluno) === cod; }), removidos.Descontos);
@@ -996,7 +1038,44 @@ function apagarAluno_(user, p) {
   sheet_('Alunos').deleteRow(al._row);
   audit_(user, 'apagar', 'Alunos', cod, al, null);
   _cache = {};
-  return { ok: true, codigo: cod, nome: al.nome_completo, removidos: removidos };
+  return { ok: true, codigo: cod, nome: al.nome_completo, removidos: removidos,
+    // Só o que sai mesmo das contas: um recibo anulado já lá não estava.
+    dinheiro: recibosDele.reduce(function (t, r) {
+      return r.estado === 'anulado' ? t : mt_(t + Number(r.valor)); }, 0) };
+}
+
+// O encarregado só sai depois dos educandos e do dinheiro: enquanto um recibo
+// disser o nome dele, apagá-lo era deixar o recibo a apontar para ninguém.
+function apagarEncarregado_(user, p) {
+  if (!user || user.papel !== 'admin') throw fail_('permissao', 'Só o administrador apaga um encarregado.');
+  var cod = trim_(p.codigo);
+  var e = findBy_('Encarregados', 'codigo', cod);
+  if (!e) throw fail_('naoexiste', 'Encarregado não encontrado.');
+
+  var filhos = readTable_('AlunoEncarregado').rows.filter(function (l) { return trim_(l.encarregado) === cod; });
+  if (filhos.length) {
+    var nomes = filhos.map(function (l) {
+      var a = findBy_('Alunos', 'codigo', trim_(l.aluno));
+      return a ? a.nome_completo : trim_(l.aluno);
+    });
+    throw fail_('validacao', 'Ainda está ligado a ' + nomes.join(', ') + '. Desligue-o do aluno primeiro.');
+  }
+  // Conta-se também o que está anulado: a linha anulada continua a dizer este nome.
+  var recs = readTable_('Recebimentos').rows.filter(function (r) { return trim_(r.encarregado) === cod; }).length;
+  if (recs) {
+    throw fail_('validacao', 'Há ' + recs + ' recibo' + (recs === 1 ? '' : 's') + ' em nome de ' +
+      e.nome_completo + '. Um recibo nunca fica sem dono.');
+  }
+  var emola = readTable_('Pagamentos_eMola').rows.filter(function (x) { return trim_(x.encarregado) === cod; }).length;
+  if (emola) throw fail_('validacao', 'Há ' + emola + ' pagamento e-Mola ligado a ' + e.nome_completo + '.');
+
+  var removidos = { Mensagens: [], Encarregados: [cod] };
+  apagarLinhas_(user, 'Mensagens', readTable_('Mensagens').rows.filter(function (m) {
+    return trim_(m.encarregado) === cod; }), removidos.Mensagens);
+  sheet_('Encarregados').deleteRow(e._row);
+  audit_(user, 'apagar', 'Encarregados', cod, e, null);
+  _cache = {};
+  return { ok: true, codigo: cod, nome: e.nome_completo, removidos: removidos };
 }
 
 // De baixo para cima: apagar uma linha faz subir todas as que estão por baixo.

@@ -170,7 +170,8 @@ check('o recibo entra na caixa', saldo('CX_COMUM') === antesRec + 1000, saldo('C
 
 // ── 8b. un alunno pagato non si cancella piu ────────────────
 var noApaga = post({ action: 'apagarAluno', token: T, codigo: aluno.codigo });
-check('alunno con soldi ricevuti non si cancella', noApaga.code === 'validacao' && /dinheiro recebido/.test(noApaga.error), noApaga);
+check('alunno con soldi ricevuti non si cancella', noApaga.code === 'temPagamentos' && /dinheiro recebido/.test(noApaga.error), noApaga);
+check('e dice cosa porterebbe via', noApaga.extra && noApaga.extra.recibos >= 1 && noApaga.extra.cobrancas > 0, noApaga.extra);
 check('e resta li dov\'era', tabela('Alunos').filter(function (a) { return a.codigo === aluno.codigo; }).length === 1);
 
 // ── 9. movimentos de uma conta ───────────────────────────────
