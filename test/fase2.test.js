@@ -190,6 +190,27 @@ check('anular duas vezes recusado', post({ action: 'anularRecebimento', token: T
 check('o número do recibo não se reutiliza', receber({ encarregado: e1.codigo, valor: 50, metodo: 'numerario',
   conta: 'CX_COMUM', data: HOJE, categoria: 'REC_OUT' }).recibo.numero_recibo > r2.recibo.numero_recibo);
 
+// 6b. corrigire un incasso sbagliato: annullare e rifare non lascia strascichi
+var cobCorr = cobsDe('B001').filter(function (c) { return c.estado === 'aberta'; })[0];
+var faltaAntes = Number(cobCorr.valor_liquido);
+var errado = receber({ encarregado: e1.codigo, valor: faltaAntes, metodo: 'numerario', conta: 'CX_COMUM',
+  data: HOJE, alocacoes: [{ cobranca: cobCorr.id, valor: faltaAntes }] });
+check('o lancamento errado paga a cobranca', errado.ok &&
+  cobsDe('B001').filter(function (c) { return c.id === cobCorr.id; })[0].estado === 'paga', errado);
+var desfeito = post({ action: 'anularRecebimento', token: T, numero: errado.recibo.numero_recibo, motivo: 'Valor errado' });
+check('anulado, a cobranca volta a aberta', desfeito.ok &&
+  cobsDe('B001').filter(function (c) { return c.id === cobCorr.id; })[0].estado === 'aberta', desfeito.cobrancas);
+var certo = receber({ encarregado: e1.codigo, valor: faltaAntes, metodo: 'numerario', conta: 'CX_COMUM',
+  data: HOJE, alocacoes: [{ cobranca: cobCorr.id, valor: faltaAntes }] });
+check('o lancamento certo e um recibo novo', certo.ok && certo.recibo.numero_recibo !== errado.recibo.numero_recibo, certo);
+check('a cobranca fica paga uma so vez', cobsDe('B001').filter(function (c) { return c.id === cobCorr.id; })[0].estado === 'paga');
+check('so uma alocacao viva naquela cobranca', tabela('Alocacoes').filter(function (a) {
+  return a.cobranca === cobCorr.id && tabela('Recebimentos').filter(function (r) {
+    return r.numero_recibo === a.recebimento && r.estado !== 'anulado'; }).length; }).length === 1);
+check('o recibo errado continua la, anulado e com motivo', tabela('Recebimentos').filter(function (r) {
+  return r.numero_recibo === errado.recibo.numero_recibo &&
+    r.estado === 'anulado' && r.motivo_anulacao === 'Valor errado'; }).length === 1);
+
 check('cobrança com pagamento não se anula', post({ action: 'anularCobranca', token: T, id: matB.id, motivo: 'x' }).code === 'validacao');
 var semPag = cobsDe('B001').filter(function (c) { return c.estado === 'aberta'; })[0];
 var ac = post({ action: 'anularCobranca', token: T, id: semPag.id, motivo: 'Cobrada por engano' });

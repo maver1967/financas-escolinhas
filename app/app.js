@@ -610,6 +610,7 @@ function panelMesCorrente() {
     });
     p.appendChild(h('div', { class: 'table-wrap' }, h('table', { class: 'tbl' },
       h('thead', null, h('tr', null, ['Data', 'Recibo', 'Família', 'Valor'].map(function (t) { return h('th', null, t); }))), tb)));
+    if (isAdmin()) p.appendChild(h('p', { class: 'muted' }, 'Lançou algum errado? Toque nele para corrigir ou anular.'));
   }
   return p;
 }
@@ -1524,7 +1525,18 @@ function painelFamilia(v, codEnc, codAluno) {
 }
 
 function formPagamento(e, divida, credito, codAluno) {
-  var p = h('section', { class: 'panel' }, h('h2', null, 'Novo pagamento'));
+  // Vem da ficha de um recibo que se acabou de anular para corrigir.
+  // Lê-se uma vez só: quem sair daqui e voltar está a lançar coisa nova.
+  // Com prazo: quem anulou e foi fazer outra coisa não quer ver estes valores
+  // a aparecer meia hora depois, num pagamento que já nada tem a ver.
+  var corr = _correcao && _correcao.encarregado === e.codigo &&
+    Date.now() - _correcao.quando < 10 * 60 * 1000 ? _correcao : null;
+  _correcao = null;
+  var p = h('section', { class: 'panel' }, h('h2', null, corr ? 'Pagamento corrigido' : 'Novo pagamento'));
+  if (corr) {
+    p.appendChild(h('p', { class: 'aviso-correcao' }, 'O recibo ' + corr.deRecibo +
+      ' foi anulado. Está aqui tudo como estava: mude o que estava errado e confirme.'));
+  }
   var offline = !navigator.onLine;
   var filhos = filhosDe(e.codigo);
 
@@ -1705,7 +1717,17 @@ function formPagamento(e, divida, credito, codAluno) {
 
   p.appendChild(h('div', { class: 'form-actions' }, confirmar));
   if (offline) p.appendChild(h('p', { class: 'muted' }, 'Sem rede: o pagamento fica no telefone com número provisório e segue sozinho quando houver ligação.'));
+  if (corr) {
+    fValor.value = corr.valor;
+    if (corr.metodo) fMetodo.value = corr.metodo;
+    if (corr.data) fData.value = corr.data;
+    if (corr.referencia) fRef.value = corr.referencia;
+    if (corr.observacao) fObs.value = corr.observacao;
+    if (corr.aluno && filhos.some(function (a) { return a.codigo === corr.aluno; })) fAluno.value = corr.aluno;
+  }
   contaSugerida();
+  // A conta vem depois da sugerida: a do recibo velho manda sobre o palpite.
+  if (corr && corr.conta) fConta.value = corr.conta;
   desenhar();
   return p;
 }
@@ -1727,10 +1749,16 @@ function panelHistoricoFamilia(e) {
   });
   p.appendChild(h('div', { class: 'table-wrap' }, h('table', { class: 'tbl' },
     h('thead', null, h('tr', null, ['Data', 'Recibo', 'Método', 'Valor'].map(function (t) { return h('th', null, t); }))), tb)));
+  if (isAdmin()) p.appendChild(h('p', { class: 'muted' }, 'Toque num recibo para o ver, corrigir ou anular.'));
   return p;
 }
 
 // ── Recibo ───────────────────────────────────────────────────
+// Corrigir é anular e lançar outra vez: o recibo errado fica anulado e à
+// vista, com o motivo, e o certo nasce ao lado. Isto guarda o que estava no
+// errado, do caminho da ficha do recibo até ao formulário de pagamento.
+var _correcao = null;
+
 function primeiroNome(n) { return String(n || '').split(' ')[0]; }
 
 function textoRecibo(enc, r, divida) {
@@ -1847,16 +1875,32 @@ function viewRecibo(v, numero) {
     btn('WhatsApp', function () { enviarWhatsApp(enc, textoRecibo(enc, r, divida), r.numero_recibo); }, 'ghost')
   ];
   if (isAdmin() && r.estado !== 'anulado') {
-    acts.push(btn('Anular', function () {
-      var motivo = window.prompt('Motivo da anulação do recibo ' + r.numero_recibo + ':');
-      if (!motivo || !motivo.trim()) return;
-      api('anularRecebimento', { numero: r.numero_recibo, motivo: motivo.trim() }).then(function (res) {
+    // Anular deixa o dinheiro fora das contas. Corrigir faz o mesmo e leva os
+    // valores para um recibo novo, para se mudar só o que estava errado.
+    function anular(motivo, depois) {
+      return api('anularRecebimento', { numero: r.numero_recibo, motivo: motivo }).then(function (res) {
         upsertLocal('Recebimentos', res.recibo);
         (res.cobrancas || []).forEach(function (c) { upsertLocal('Cobrancas', c); });
-        toast('Recibo anulado.', 'ok');
-        route();
-      }).catch(function (e) { toast(e.message, 'erro'); });
-    }, 'ghost perigo'));
+        depois();
+      }, function (err) { toast(err.message, 'erro'); });
+    }
+    var bCorrigir = btn('Corrigir', function () {
+      var motivo = window.prompt('O que estava errado no recibo ' + r.numero_recibo + '?', 'Lançado por engano');
+      if (!motivo || !motivo.trim()) return;
+      busy(bCorrigir, anular(motivo.trim(), function () {
+        _correcao = { quando: Date.now(), encarregado: enc.codigo, deRecibo: r.numero_recibo, valor: r.valor,
+          metodo: r.metodo, conta: r.conta, data: r.data, referencia: r.referencia_externa,
+          observacao: r.observacao, aluno: r.aluno };
+        toast('Recibo ' + r.numero_recibo + ' anulado. Lance agora o certo.', 'ok');
+        location.hash = '#/receber/' + enc.codigo;
+      }));
+    }, 'ghost');
+    var bAnular = btn('Anular', function () {
+      var motivo = window.prompt('Motivo da anulação do recibo ' + r.numero_recibo + ':');
+      if (!motivo || !motivo.trim()) return;
+      busy(bAnular, anular(motivo.trim(), function () { toast('Recibo anulado.', 'ok'); route(); }));
+    }, 'ghost perigo');
+    acts.push(bCorrigir, bAnular);
   }
   v.appendChild(pageHead('Recibo ' + r.numero_recibo,
     fmtData(r.data) + ' · ' + (METODO_NOME[r.metodo] || r.metodo) + (r.estado === 'anulado' ? ' · ANULADO' : ''), acts));

@@ -194,6 +194,10 @@ main { margin-left: var(--nav-w); padding: 24px 28px 64px; max-width: 1200px; }
 .checks .chk.livre { flex: 1; min-width: 150px; }
 .checks .chk.livre input { width: 100%; height: auto; }
 
+/* a lançar outra vez um recibo que se acabou de anular */
+.aviso-correcao { border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--warn);
+  padding: 10px 12px; border-radius: 6px; margin: 0 0 12px; font-size: .92rem; }
+
 /* o que uma educadora tem de saber antes de cuidar da criança */
 .aviso-saude { border: 1px solid var(--warn); background: var(--warn-bg); color: var(--warn); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
 .aviso-saude ul { margin: 6px 0 0; padding-left: 20px; }
