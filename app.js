@@ -910,15 +910,40 @@ function botaoApagarAluno(a) {
     if (!window.confirm('Apagar ' + a.nome_completo + ' (' + a.codigo + ') de ' + escolaNome(a.escola) + '?' +
       (leva.length ? '\n\nLeva também ' + leva.join(', ') + '.' : '') +
       '\n\nNão há volta. Se foi só a escola errada, feche isto e mude a escola em cima.')) return;
-    busy(b, api('apagarAluno', { codigo: a.codigo })).then(function (r) {
-      Object.keys(r.removidos).forEach(function (t) {
-        r.removidos[t].forEach(function (id) { removeLocal(t, id); });
-      });
-      toast(r.nome + ' apagado.', 'ok');
-      location.hash = '#/alunos';
-    }, function (err) { toast(err.message, 'erro'); });
+    busy(b, apagarAluno(a, false)).catch(function () {});
   }, 'ghost perigo afastado');
   return b;
+}
+
+function apagarAluno(a, tudo) {
+  return api('apagarAluno', { codigo: a.codigo, tudo: !!tudo }).then(function (r) {
+    aplicarRemocoes(r.removidos);
+    toast(r.nome + ' apagado' + (r.dinheiro > 0 ? ', com ' + fmtMT(r.dinheiro) + ' de recibos' : '') + '.', 'ok');
+    location.hash = '#/alunos';
+  }, function (err) {
+    // O servidor travou porque já entrou dinheiro. Para dados de ensaio há
+    // saída, mas só escrevendo o código do aluno: não se faz sem querer.
+    if (err.code !== 'temPagamentos') { toast(err.message, 'erro'); throw err; }
+    var x = err.extra || {};
+    var resposta = window.prompt(err.message + '\n\n' +
+      'Se isto foi dinheiro a sério, feche e anule os recibos um a um — depois ponha o estado em Desistente.\n\n' +
+      'Se foi só para experimentar a app, apaga-se tudo: ' + x.recibos + ' recibo' + (x.recibos === 1 ? '' : 's') +
+      ' e ' + x.cobrancas + ' cobranças vão atrás.\n\n' +
+      'Para apagar tudo, escreva o código do aluno (' + x.codigo + '):');
+    if (!resposta || norm(resposta.trim()) !== norm(x.codigo)) {
+      if (resposta !== null) toast('O código não bate. Nada foi apagado.', 'erro');
+      throw err;
+    }
+    return apagarAluno(a, true);
+  });
+}
+
+// Só se tocam as folhas que a app guarda no telefone.
+function aplicarRemocoes(removidos) {
+  Object.keys(removidos || {}).forEach(function (t) {
+    if (!KEYS[t]) return;
+    removidos[t].forEach(function (id) { removeLocal(t, id); });
+  });
 }
 
 function panelEncarregadosDoAluno(a) {
@@ -1153,6 +1178,25 @@ function viewEncarregados(v) {
   draw();
 }
 
+// Só sai quando já não tem educandos nem recibos em seu nome.
+function botaoApagarEncarregado(e) {
+  var b = btn('Apagar encarregado', function () {
+    if (!navigator.onLine) { toast('Sem ligação à internet.', 'erro'); return; }
+    var filhos = linksDoEncarregado(e.codigo).length;
+    if (filhos) {
+      toast('Ainda tem ' + filhos + (filhos === 1 ? ' educando ligado.' : ' educandos ligados.'), 'erro');
+      return;
+    }
+    if (!window.confirm('Apagar ' + e.nome_completo + ' (' + e.codigo + ')?\n\nNão há volta.')) return;
+    busy(b, api('apagarEncarregado', { codigo: e.codigo })).then(function (r) {
+      aplicarRemocoes(r.removidos);
+      toast(r.nome + ' apagado.', 'ok');
+      location.hash = '#/encarregados';
+    }, function (err) { toast(err.message, 'erro'); });
+  }, 'ghost perigo afastado');
+  return b;
+}
+
 function viewEncarregado(v, cod) {
   var isNew = cod === 'novo';
   var e = isNew ? null : find('Encarregados', cod);
@@ -1175,7 +1219,9 @@ function viewEncarregado(v, cod) {
     acts.push(h('a', { class: 'btn ghost', href: 'tel:+258' + e.telefone_1 }, 'Ligar'));
     if (e.tem_whatsapp === SIM) acts.push(h('a', { class: 'btn ghost', href: waLink(e.telefone_1), target: '_blank', rel: 'noopener' }, 'WhatsApp'));
   }
-  v.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Dados'), f.el, h('div', { class: 'form-actions' }, acts, save)));
+  var apagarE = !isNew && isAdmin() ? botaoApagarEncarregado(e) : null;
+  v.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Dados'), f.el,
+    h('div', { class: 'form-actions' }, apagarE, acts, save)));
   if (isNew) return;
 
   var p = h('section', { class: 'panel' }, h('h2', null, 'Educandos'));
