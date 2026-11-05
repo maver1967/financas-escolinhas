@@ -884,12 +884,40 @@ function viewAluno(v, cod) {
       if (isNew) location.hash = '#/aluno/' + r.codigo; else route();
     }).catch(function () {});
   }, 'primary');
-  v.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Dados do aluno'), f.el, h('div', { class: 'form-actions' }, save)));
+  var apagar = !isNew && isAdmin() ? botaoApagarAluno(a) : null;
+  v.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Dados do aluno'), f.el,
+    h('div', { class: 'form-actions' }, apagar, save)));
 
   if (isNew) return;
   v.appendChild(panelEncarregadosDoAluno(a));
   v.appendChild(panelSituacaoAluno(a));
   v.appendChild(panelDescontos(a));
+}
+
+// Inscrito por engano. Enquanto não houver dinheiro em seu nome, apaga-se de
+// vez; depois disso o caminho é pôr o estado em Desistente ou Transferido.
+function botaoApagarAluno(a) {
+  var b = btn('Apagar aluno', function () {
+    if (!navigator.onLine) { toast('Sem ligação à internet.', 'erro'); return; }
+    var cobr = rows('Cobrancas').filter(function (c) { return c.aluno === a.codigo; }).length;
+    var links = linksDoAluno(a.codigo).length;
+    var desc = rows('Descontos').filter(function (d) { return d.aluno === a.codigo; }).length;
+    var leva = [];
+    if (cobr) leva.push(cobr + (cobr === 1 ? ' cobrança' : ' cobranças'));
+    if (links) leva.push(links + (links === 1 ? ' ligação à família' : ' ligações à família'));
+    if (desc) leva.push(desc + (desc === 1 ? ' desconto' : ' descontos'));
+    if (!window.confirm('Apagar ' + a.nome_completo + ' (' + a.codigo + ') de ' + escolaNome(a.escola) + '?' +
+      (leva.length ? '\n\nLeva também ' + leva.join(', ') + '.' : '') +
+      '\n\nNão há volta. Se foi só a escola errada, feche isto e mude a escola em cima.')) return;
+    busy(b, api('apagarAluno', { codigo: a.codigo })).then(function (r) {
+      Object.keys(r.removidos).forEach(function (t) {
+        r.removidos[t].forEach(function (id) { removeLocal(t, id); });
+      });
+      toast(r.nome + ' apagado.', 'ok');
+      location.hash = '#/alunos';
+    }, function (err) { toast(err.message, 'erro'); });
+  }, 'ghost perigo afastado');
+  return b;
 }
 
 function panelEncarregadosDoAluno(a) {

@@ -181,6 +181,8 @@ main { margin-left: var(--nav-w); padding: 24px 28px 64px; max-width: 1200px; }
 .field .req { color: var(--err); }
 .field input[readonly], .field select:disabled { background: var(--bg); color: var(--muted); }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+/* o que destrói fica longe do que grava, para não se carregar num por outro */
+.form-actions .afastado { margin-right: auto; }
 
 /* título de secção dentro de um formulário comprido */
 .field.form-sec { gap: 2px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
